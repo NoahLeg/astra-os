@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, FlaskConical, Info, LoaderCircle, PlugZap, Settings2, Unplug } from "lucide-react";
+import { CheckCircle2, FlaskConical, Info, LoaderCircle, PlugZap, Send, Settings2, Unplug } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -10,6 +10,7 @@ import { Modal } from "@/components/shared/modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input, Textarea } from "@/components/ui/input";
 import { useAppStore } from "@/stores/app-store";
 import type { Connection } from "@/types";
 
@@ -31,6 +32,8 @@ export function ConnectionsPage() {
   const hydrateFromDatabase = useAppStore((state) => state.hydrateFromDatabase);
   const [selected, setSelected] = useState<Connection | null>(null);
   const [busyId, setBusyId] = useState<string>();
+  const [emailDraft, setEmailDraft] = useState({ to: "", subject: "", body: "" });
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   useEffect(() => {
     const connected = searchParams.get("connected");
@@ -73,6 +76,31 @@ export function ConnectionsPage() {
       toast.error(error instanceof Error ? error.message : "Test impossible");
     } finally {
       setBusyId(undefined);
+    }
+  };
+
+  const sendGmailMessage = async () => {
+    if (!selected || selected.id !== "gmail") return;
+
+    if (!window.confirm(`Envoyer cet e-mail à ${emailDraft.to} ? Cette action est réelle.`)) return;
+
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch("/api/connections/google/gmail/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...emailDraft, confirmed: true }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "L’e-mail n’a pas pu être envoyé.");
+
+      setEmailDraft({ to: "", subject: "", body: "" });
+      await hydrateFromDatabase();
+      toast.success("E-mail envoyé depuis Gmail.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Envoi Gmail impossible");
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -146,6 +174,44 @@ export function ConnectionsPage() {
             <div className="rounded-xl bg-muted/40 p-4 text-sm">
               {selected.permissions.map((permission) => <p key={permission} className="py-1">✓ {permission}</p>)}
             </div>
+            {selected.id === "gmail" ? (
+              <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                <div>
+                  <p className="text-sm font-medium">Envoyer un e-mail</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Un message réel sera envoyé uniquement après votre confirmation.</p>
+                </div>
+                <div className="grid gap-3">
+                  <Input
+                    type="email"
+                    value={emailDraft.to}
+                    onChange={(event) => setEmailDraft((draft) => ({ ...draft, to: event.target.value }))}
+                    placeholder="destinataire@entreprise.fr"
+                    aria-label="Destinataire"
+                  />
+                  <Input
+                    value={emailDraft.subject}
+                    onChange={(event) => setEmailDraft((draft) => ({ ...draft, subject: event.target.value }))}
+                    placeholder="Objet de l’e-mail"
+                    aria-label="Objet"
+                  />
+                  <Textarea
+                    value={emailDraft.body}
+                    onChange={(event) => setEmailDraft((draft) => ({ ...draft, body: event.target.value }))}
+                    placeholder="Rédigez votre message…"
+                    aria-label="Message"
+                    rows={5}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  disabled={isSendingEmail || !emailDraft.to || !emailDraft.subject || !emailDraft.body}
+                  onClick={() => void sendGmailMessage()}
+                >
+                  {isSendingEmail ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  Envoyer avec Gmail
+                </Button>
+              </div>
+            ) : null}
             <div className="flex justify-end gap-2 border-t pt-4">
               <Button variant="outline" disabled={busyId === selected.id} onClick={() => void testConnection(selected)}>
                 {busyId === selected.id ? <LoaderCircle className="size-4 animate-spin" /> : <FlaskConical className="size-4" />}
