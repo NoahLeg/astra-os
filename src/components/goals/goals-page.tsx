@@ -1,0 +1,11 @@
+"use client";
+import Link from "next/link";
+import { ArrowRight, CalendarDays, Plus, Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/shared/page-header";
+import { useAppStore } from "@/stores/app-store";
+import { AgentStatus } from "@/components/shared/indicators";
+export function GoalsPage() { const goals = useAppStore((state) => state.goals); return <div className="space-y-7"><PageHeader eyebrow="Orchestration" title="Objectifs" description="Chaque objectif relie votre intention à un plan, des agents, des décisions et des résultats mesurables." actions={<Link href="/goals/new"><Button><Plus className="size-4" />Nouvel objectif</Button></Link>} /><div className="grid gap-4 lg:grid-cols-2">{goals.map((goal) => <Card key={goal.id} className="group transition hover:border-indigo-500/40"><CardContent className="p-5"><div className="flex items-start justify-between gap-4"><span className="rounded-xl bg-indigo-500/10 p-3 text-indigo-500"><Target className="size-5" /></span><div className="flex gap-2"><Badge className="bg-muted text-muted-foreground">Priorité {goal.priority}</Badge><AgentStatus status={goal.status} /></div></div><h2 className="mt-5 text-lg font-semibold">{goal.title}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{goal.description}</p><div className="mt-5 flex items-center justify-between text-xs"><span className="text-muted-foreground">Progression globale</span><span className="font-mono font-semibold">{goal.progress}%</span></div><Progress value={goal.progress} className="mt-2" /><div className="mt-5 flex flex-wrap items-center gap-3 border-t pt-4 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><CalendarDays className="size-3.5" />{new Date(goal.dueDate).toLocaleDateString("fr-FR")}</span><span>{goal.agentIds.length} agents</span><span>Autonomie N{goal.autonomyLevel}</span><Link href={`/goals/${goal.id}`} className="ml-auto flex items-center gap-1 font-medium text-indigo-500">Ouvrir<ArrowRight className="size-3.5 transition group-hover:translate-x-1" /></Link></div></CardContent></Card>)}</div></div>; }

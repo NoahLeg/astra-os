@@ -1,0 +1,2 @@
+import { cn } from "@/lib/utils";
+export function Switch({ checked, onCheckedChange, label }: { checked: boolean; onCheckedChange: (checked: boolean) => void; label: string }) { return <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onCheckedChange(!checked)} className={cn("relative h-6 w-11 rounded-full transition-colors", checked ? "bg-primary" : "bg-muted")}><span className={cn("absolute top-1 size-4 rounded-full bg-white shadow transition-transform", checked ? "translate-x-1.5" : "-translate-x-4.5")} /></button>; }
