@@ -158,7 +158,15 @@ Le cycle de compte inclut la confirmation d’email, le renouvellement automatiq
 
 ### Console Super Admin
 
-Les emails déclarés dans `SUPER_ADMIN_EMAILS` peuvent ouvrir `/admin` depuis le menu de profil. Cette console liste toutes les entreprises, leurs profils et leurs rôles, puis permet d’ajouter, remplacer ou supprimer les URLs et clés API propres à chaque workspace.
+Les emails déclarés dans `SUPER_ADMIN_EMAILS` peuvent ouvrir `/admin` depuis le menu de profil. Cette console liste toutes les entreprises et permet d’inviter, suspendre, réactiver ou supprimer des comptes, de consulter le journal d’audit et de gérer les URLs et clés API propres à chaque workspace.
+
+Trois niveaux d’accès sont appliqués à la navigation **et** aux Route Handlers :
+
+- `viewer` — lecture des tableaux de bord, objectifs, projets et activités ;
+- `operator` — utilisation des agents, de la mémoire, des validations et des automatisations ;
+- `admin` — gestion des connexions, modèles, permissions, budgets et paramètres de l’entreprise.
+
+La page `/account` permet à chaque utilisateur de gérer son profil et sa sécurité. Les paramètres d’entreprise sont persistés dans Supabase, les éléments de mémoire actifs contextualisent réellement les agents, et les automatisations peuvent être créées, exécutées, mises en pause, exportées et supprimées.
 
 Les mots de passe Supabase ne sont jamais accessibles. Les clés fournisseurs ne sont jamais renvoyées au navigateur après leur enregistrement : elles sont chiffrées en AES-256-GCM dans `integration_secrets`, seuls leurs quatre derniers caractères sont conservés comme indication et chaque modification crée une entrée dans `audit_logs`.
 

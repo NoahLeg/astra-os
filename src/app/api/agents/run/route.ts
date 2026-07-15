@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { getWorkspaceData, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
+import { getWorkspaceConfiguration, getWorkspaceData, hasWorkspaceAccess, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
 import { createOpenAIResponse, getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 import type { ActivityEvent } from "@/types";
 
@@ -19,19 +19,24 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   const user = await getAuthenticatedUser(request);
   if (!user) return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
+  if (!await hasWorkspaceAccess(user.id, "operator")) return NextResponse.json({ error: "Accès opérateur requis" }, { status: 403 });
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Instruction invalide" }, { status: 400 });
 
   try {
     const workspace = await getWorkspaceData(user.id);
+    const workspaceConfiguration = await getWorkspaceConfiguration(user.id);
     const agent = workspace.agents.find((item) => item.id === parsed.data.agentId);
     if (!agent) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
     if (!agent.enabled) return NextResponse.json({ error: "Activez cet agent avant de lui confier une tâche." }, { status: 409 });
 
     const configuration = await getOpenAIConfiguration(user.id);
+    const memoryContext = workspaceConfiguration?.settings.memoryEnabled
+      ? workspace.memories.filter((memory) => !memory.blocked).slice(0, 20).map((memory) => `- ${memory.title}: ${memory.content}`).join("\n").slice(0, 8_000)
+      : "Mémoire désactivée par l’administrateur.";
     const content = await createOpenAIResponse({
       ...configuration,
-      instructions: `Tu es l’agent ${agent.name}, spécialiste de ${agent.role}. ${agent.description} Réponds en français. Produis uniquement un résultat que tu peux réellement générer avec le modèle. Ne prétends jamais avoir utilisé un outil externe. Outils autorisés ou prévus : ${agent.tools.join(", ") || "aucun"}.`,
+      instructions: `Tu es l’agent ${agent.name}, spécialiste de ${agent.role}. ${agent.description} Réponds en français. Produis uniquement un résultat que tu peux réellement générer avec le modèle. Ne prétends jamais avoir utilisé un outil externe. Outils autorisés ou prévus : ${agent.tools.join(", ") || "aucun"}. Contexte mémoire autorisé de cette entreprise :\n${memoryContext || "Aucun élément actif."}`,
       prompt: parsed.data.instruction,
       maxOutputTokens: 1_500,
       text: {

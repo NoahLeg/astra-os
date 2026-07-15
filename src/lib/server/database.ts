@@ -4,7 +4,8 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { activities, agents, approvals, automations, connections, goals, memoryItems, projects } from "@/mocks/data";
-import type { WorkspaceData } from "@/types";
+import { accessRank, defaultWorkspaceSettings } from "@/config";
+import type { AccessLevel, AccountProfile, AccountStatus, WorkspaceData, WorkspaceSettings } from "@/types";
 
 type Collection = keyof WorkspaceData;
 type WorkspaceRecord = WorkspaceData[Collection][number];
@@ -115,8 +116,98 @@ function getLocalDatabase() {
 }
 
 export async function getWorkspaceIdForUser(userId: string) {
-  const memberships = await supabaseRequest<Array<{ workspace_id: string }>>(`workspace_members?user_id=eq.${encodeURIComponent(userId)}&select=workspace_id&limit=1`);
+  if (!useSupabase) return "local";
+  const memberships = await supabaseRequest<Array<{ workspace_id: string }>>(`workspace_members?user_id=eq.${encodeURIComponent(userId)}&status=eq.active&select=workspace_id&limit=1`);
   return memberships[0]?.workspace_id;
+}
+
+function normalizeAccessLevel(accessLevel?: string, role?: string): AccessLevel {
+  if (accessLevel === "viewer" || accessLevel === "operator" || accessLevel === "admin") return accessLevel;
+  if (role === "owner" || role === "admin") return "admin";
+  if (role === "member") return "operator";
+  return "viewer";
+}
+
+export async function getUserWorkspaceContext(userId: string) {
+  if (!useSupabase) {
+    return { workspaceId: "local", workspaceName: "Espace local", role: "owner", accessLevel: "admin" as const, status: "active" as const };
+  }
+  const memberships = await supabaseRequest<Array<{ workspace_id: string; role: string; access_level?: string; status?: string }>>(
+    `workspace_members?user_id=eq.${encodeURIComponent(userId)}&select=workspace_id,role,access_level,status&limit=1`,
+  );
+  const membership = memberships[0];
+  if (!membership) return null;
+  const workspaces = await supabaseRequest<Array<{ name: string }>>(`workspaces?id=eq.${membership.workspace_id}&select=name&limit=1`);
+  return {
+    workspaceId: membership.workspace_id,
+    workspaceName: workspaces[0]?.name ?? "Espace de travail",
+    role: membership.role,
+    accessLevel: normalizeAccessLevel(membership.access_level, membership.role),
+    status: (membership.status === "suspended" ? "suspended" : "active") as AccountStatus,
+  };
+}
+
+export async function hasWorkspaceAccess(userId: string, minimum: AccessLevel) {
+  const context = await getUserWorkspaceContext(userId);
+  return Boolean(context && context.status === "active" && accessRank[context.accessLevel] >= accessRank[minimum]);
+}
+
+export async function getAccountProfile(userId: string, fallbackEmail = "") : Promise<AccountProfile | null> {
+  const context = await getUserWorkspaceContext(userId);
+  if (!context) return null;
+  if (!useSupabase) {
+    return { id: userId, email: fallbackEmail || "demo@local.test", fullName: "Utilisateur local", jobTitle: "", phone: "", timezone: "Europe/Paris", accessLevel: context.accessLevel, status: context.status, workspaceId: context.workspaceId, workspaceName: context.workspaceName };
+  }
+  const rows = await supabaseRequest<Array<{ id: string; email: string; full_name: string; job_title?: string; phone?: string; timezone?: string }>>(
+    `profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,job_title,phone,timezone&limit=1`,
+  );
+  const profile = rows[0];
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    email: profile.email,
+    fullName: profile.full_name,
+    jobTitle: profile.job_title ?? "",
+    phone: profile.phone ?? "",
+    timezone: profile.timezone ?? "Europe/Paris",
+    accessLevel: context.accessLevel,
+    status: context.status,
+    workspaceId: context.workspaceId,
+    workspaceName: context.workspaceName,
+  };
+}
+
+export async function updateAccountProfile(userId: string, changes: { fullName: string; jobTitle: string; phone: string; timezone: string }) {
+  if (!useSupabase) return getAccountProfile(userId);
+  await supabaseRequest(`profiles?id=eq.${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ full_name: changes.fullName, job_title: changes.jobTitle, phone: changes.phone, timezone: changes.timezone, updated_at: new Date().toISOString() }),
+  });
+  return getAccountProfile(userId);
+}
+
+export async function getWorkspaceConfiguration(userId: string) {
+  const context = await getUserWorkspaceContext(userId);
+  if (!context) return null;
+  if (!useSupabase) return { workspaceName: context.workspaceName, settings: defaultWorkspaceSettings };
+  const rows = await supabaseRequest<Array<{ name: string; settings?: Partial<WorkspaceSettings> }>>(
+    `workspaces?id=eq.${context.workspaceId}&select=name,settings&limit=1`,
+  );
+  const workspace = rows[0];
+  return { workspaceName: workspace?.name ?? context.workspaceName, settings: { ...defaultWorkspaceSettings, ...(workspace?.settings ?? {}) } };
+}
+
+export async function updateWorkspaceConfiguration(userId: string, workspaceName: string, settings: WorkspaceSettings) {
+  const context = await getUserWorkspaceContext(userId);
+  if (!context || context.status !== "active" || context.accessLevel !== "admin") throw new Error("Accès administrateur requis");
+  if (!useSupabase) return { workspaceName, settings };
+  await supabaseRequest(`workspaces?id=eq.${context.workspaceId}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ name: workspaceName, settings, updated_at: new Date().toISOString() }),
+  });
+  return { workspaceName, settings };
 }
 
 export async function createTenantForUser(user: { id: string; email: string; fullName: string; companyName: string }) {
@@ -178,6 +269,20 @@ export async function patchWorkspaceRecord(collection: Collection, id: string, c
   const updated = { ...current, ...changes } as WorkspaceRecord;
   await saveWorkspaceRecord(collection, updated, userId);
   return updated;
+}
+
+export async function deleteWorkspaceRecord(collection: Collection, id: string, userId = "local") {
+  if (useSupabase) {
+    const workspaceId = await getWorkspaceIdForUser(userId);
+    if (!workspaceId) return false;
+    await supabaseRequest(`workspace_records?workspace_id=eq.${workspaceId}&collection=eq.${encodeURIComponent(collection)}&id=eq.${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
+    return true;
+  }
+  const result = getLocalDatabase().prepare("DELETE FROM workspace_records WHERE collection = ? AND id = ?").run(collection, id);
+  return result.changes > 0;
 }
 
 export async function checkDatabaseHealth() {

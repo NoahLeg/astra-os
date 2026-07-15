@@ -1,4 +1,4 @@
-import type { ActivityEvent, AgentExecution, ApprovalRequest, Automation, Connection, Goal, GoalAnalysis, MemoryItem, Project, WorkspaceData } from "@/types";
+import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, Connection, Goal, GoalAnalysis, MemoryItem, Project, WorkspaceData, WorkspaceSettings } from "@/types";
 import { apiClient, simulate } from "./api-client";
 
 type Collection = keyof WorkspaceData;
@@ -15,6 +15,12 @@ export const workspaceService = {
     await apiClient<WorkspaceData[K][number]>("/api/workspace", {
       method: "POST",
       body: JSON.stringify({ operation: "patch", collection, id, changes }),
+    })
+  ).data,
+  delete: async <K extends Collection>(collection: K, id: string) => (
+    await apiClient<{ success: true }>("/api/workspace", {
+      method: "POST",
+      body: JSON.stringify({ operation: "delete", collection, id }),
     })
   ).data,
 };
@@ -39,8 +45,23 @@ export const agentService = {
     timeout: 65_000,
   })).data,
 };
-export const memoryService = { list: async () => (await workspaceService.load()).memories } satisfies { list: () => Promise<MemoryItem[]> };
-export const automationService = { list: async () => (await workspaceService.load()).automations } satisfies { list: () => Promise<Automation[]> };
+export const memoryService = {
+  list: async () => (await workspaceService.load()).memories,
+  create: (memory: MemoryItem) => workspaceService.create("memories", memory),
+  update: (id: string, changes: Partial<MemoryItem>) => workspaceService.patch("memories", id, changes),
+  delete: (id: string) => workspaceService.delete("memories", id),
+};
+export const automationService = {
+  list: async () => (await workspaceService.load()).automations,
+  create: (automation: Automation) => workspaceService.create("automations", automation),
+  update: (id: string, changes: Partial<Automation>) => workspaceService.patch("automations", id, changes),
+  delete: (id: string) => workspaceService.delete("automations", id),
+  run: async (automationId: string) => (await apiClient<AutomationExecution>("/api/automations/run", {
+    method: "POST",
+    body: JSON.stringify({ automationId }),
+    timeout: 65_000,
+  })).data,
+};
 export const approvalService = { list: async () => (await workspaceService.load()).approvals } satisfies { list: () => Promise<ApprovalRequest[]> };
 export const connectionService = { list: async () => (await workspaceService.load()).connections } satisfies { list: () => Promise<Connection[]> };
 
@@ -64,6 +85,22 @@ export const assistantService = {
       timeout: 65_000,
     })
   ).data,
+};
+
+export const settingsService = {
+  load: async () => (await apiClient<{ workspaceName: string; settings: WorkspaceSettings }>("/api/settings", { cache: "no-store" })).data,
+  save: async (workspaceName: string, settings: WorkspaceSettings) => (await apiClient<{ workspaceName: string; settings: WorkspaceSettings }>("/api/settings", {
+    method: "POST",
+    body: JSON.stringify({ workspaceName, settings }),
+  })).data,
+};
+
+export const accountService = {
+  load: async () => (await apiClient<AccountProfile>("/api/account", { cache: "no-store" })).data,
+  update: async (profile: Pick<AccountProfile, "fullName" | "jobTitle" | "phone" | "timezone">) => (await apiClient<AccountProfile>("/api/account", {
+    method: "PATCH",
+    body: JSON.stringify(profile),
+  })).data,
 };
 
 export async function sendGoalToN8n(goal: Goal) {

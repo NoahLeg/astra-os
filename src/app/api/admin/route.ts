@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSuperAdmin } from "@/lib/server/auth";
-import { deleteWorkspaceSecret, listAdminWorkspaces, listWorkspaceSecrets, saveWorkspaceSecret } from "@/lib/server/admin-service";
+import { deleteWorkspaceSecret, listAdminWorkspaces, listWorkspaceAuditLogs, listWorkspaceSecrets, saveWorkspaceSecret } from "@/lib/server/admin-service";
 
 const secretSchema = z.object({ workspaceId: z.uuid(), provider: z.string().trim().min(2).max(50), label: z.string().trim().min(2).max(80), baseUrl: z.union([z.url(), z.literal("")]).optional(), secret: z.string().min(8).max(10_000) });
 
@@ -10,7 +10,10 @@ export async function GET(request: Request) {
   if (!admin) return NextResponse.json({ error: "Accès Super Admin requis" }, { status: 403 });
   try {
     const workspaceId = new URL(request.url).searchParams.get("workspaceId");
-    if (workspaceId) return NextResponse.json({ secrets: await listWorkspaceSecrets(workspaceId) });
+    if (workspaceId) {
+      const [secrets, auditLogs] = await Promise.all([listWorkspaceSecrets(workspaceId), listWorkspaceAuditLogs(workspaceId)]);
+      return NextResponse.json({ secrets, auditLogs });
+    }
     return NextResponse.json({ workspaces: await listAdminWorkspaces() });
   } catch {
     return NextResponse.json({ error: "Console d’administration indisponible" }, { status: 503 });

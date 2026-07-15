@@ -21,8 +21,19 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
         window.location.replace(`/login?next=${encodeURIComponent(pathname)}`);
         return;
       }
-      const session = await sessionResponse.json() as { user: { id: string; email: string; user_metadata?: { full_name?: string } }; isAdmin?: boolean };
-      setAccount({ id: session.user.id, email: session.user.email, fullName: session.user.user_metadata?.full_name, isAdmin: session.isAdmin });
+      const session = await sessionResponse.json() as {
+        user: { id: string; email: string; user_metadata?: { full_name?: string } };
+        account?: { fullName?: string; accessLevel?: "viewer" | "operator" | "admin"; workspaceName?: string };
+        isAdmin?: boolean;
+      };
+      setAccount({
+        id: session.user.id,
+        email: session.user.email,
+        fullName: session.account?.fullName ?? session.user.user_metadata?.full_name,
+        accessLevel: session.account?.accessLevel,
+        workspaceName: session.account?.workspaceName,
+        isAdmin: session.isAdmin,
+      });
       await hydrateFromDatabase();
     })();
   }, [hydrateFromDatabase, pathname, setAccount]);

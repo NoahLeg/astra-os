@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { createOpenAIResponse, getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
+import { getWorkspaceConfiguration, getWorkspaceData } from "@/lib/server/database";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +20,17 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Message invalide" }, { status: 400 });
 
   try {
-    const configuration = await getOpenAIConfiguration(user.id);
+    const [configuration, workspace, workspaceConfiguration] = await Promise.all([
+      getOpenAIConfiguration(user.id),
+      getWorkspaceData(user.id),
+      getWorkspaceConfiguration(user.id),
+    ]);
+    const memoryContext = workspaceConfiguration?.settings.memoryEnabled
+      ? workspace.memories.filter((memory) => !memory.blocked).slice(0, 20).map((memory) => `- ${memory.title}: ${memory.content}`).join("\n").slice(0, 8_000)
+      : "Mémoire désactivée par l’administrateur.";
     const content = await createOpenAIResponse({
       ...configuration,
-      instructions: "Tu es Astra, le coordinateur IA d’un SaaS multi-agents. Réponds en français, de façon concise, concrète et transparente. N’affirme jamais avoir exécuté une action si elle n’a pas réellement été exécutée.",
+      instructions: `Tu es Astra, le coordinateur IA d’un SaaS multi-agents. Réponds en français, de façon concise, concrète et transparente. N’affirme jamais avoir exécuté une action si elle n’a pas réellement été exécutée. Utilise uniquement les éléments de mémoire suivants lorsqu’ils sont pertinents :\n${memoryContext || "Aucun élément actif."}`,
       prompt: parsed.data.message,
     });
     return NextResponse.json({ content, model: configuration.model });

@@ -2,6 +2,8 @@ export type Status = "active" | "paused" | "completed" | "pending" | "error" | "
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type Priority = "low" | "medium" | "high";
 export type AutonomyLevel = 0 | 1 | 2 | 3 | 4;
+export type AccessLevel = "viewer" | "operator" | "admin";
+export type AccountStatus = "active" | "suspended";
 
 export interface User {
   id: string;
@@ -10,6 +12,42 @@ export interface User {
   role: string;
   avatar?: string;
   preferredTheme: "dark" | "light" | "system";
+}
+
+export interface AccountProfile {
+  id: string;
+  email: string;
+  fullName: string;
+  jobTitle: string;
+  phone: string;
+  timezone: string;
+  accessLevel: AccessLevel;
+  status: AccountStatus;
+  workspaceId: string;
+  workspaceName: string;
+}
+
+export interface WorkspaceSettings {
+  locale: "fr" | "en";
+  compactMode: boolean;
+  enabledModelIds: string[];
+  defaultModelId: string;
+  defaultAutonomy: AutonomyLevel;
+  telemetryEnabled: boolean;
+  allowMemoryLearning: boolean;
+  memoryEnabled: boolean;
+  memoryApprovalRequired: boolean;
+  auditLogging: boolean;
+  sessionTimeoutMinutes: number;
+  monthlyBudget: number;
+  budgetAlertPercent: number;
+  blockOnBudgetLimit: boolean;
+  notificationEmail: boolean;
+  notificationApprovals: boolean;
+  notificationErrors: boolean;
+  weeklyDigest: boolean;
+  dataRetentionDays: number;
+  exportFormat: "json" | "csv";
 }
 
 export interface AIModel {
@@ -157,6 +195,7 @@ export interface Automation {
   lastRun?: string;
   nextRun?: string;
   successRate: number;
+  runCount?: number;
   nodes: AutomationNode[];
 }
 
@@ -215,6 +254,14 @@ export interface WorkspaceData {
   approvals: ApprovalRequest[];
   connections: Connection[];
   activities: ActivityEvent[];
+}
+
+export interface AutomationExecution {
+  result: string;
+  confidence: number;
+  model: string;
+  activity: ActivityEvent;
+  automation: Automation;
 }
 
 export interface AssistantMessage {

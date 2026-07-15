@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { saveWorkspaceSecret } from "@/lib/server/admin-service";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { getWorkspaceIdForUser, patchWorkspaceRecord } from "@/lib/server/database";
+import { getWorkspaceIdForUser, hasWorkspaceAccess, patchWorkspaceRecord } from "@/lib/server/database";
 import { exchangeGoogleAuthorizationCode, isGoogleConnectionId } from "@/lib/server/google-oauth";
 
 export const runtime = "nodejs";
@@ -18,6 +18,7 @@ function redirectToConnections(request: NextRequest, parameters: Record<string, 
 export async function GET(request: NextRequest) {
   const user = await getAuthenticatedUser(request);
   if (!user) return NextResponse.redirect(new URL("/login?next=/connections", request.url));
+  if (!await hasWorkspaceAccess(user.id, "admin")) return redirectToConnections(request, { error: "Accès administrateur requis" });
 
   const state = request.nextUrl.searchParams.get("state") ?? "";
   const expectedState = request.cookies.get("astra-google-oauth-state")?.value;

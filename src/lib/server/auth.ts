@@ -104,6 +104,10 @@ export function updatePassword(accessToken: string, password: string) {
   return authRequest<{ user: AuthUser }>("user", { method: "PUT", body: JSON.stringify({ password }) }, accessToken);
 }
 
+export function updateUserMetadata(accessToken: string, data: Record<string, string>) {
+  return authRequest<{ user: AuthUser }>("user", { method: "PUT", body: JSON.stringify({ data }) }, accessToken);
+}
+
 export function refreshSession(refreshToken: string) {
   return authRequest<AuthSession>("token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) });
 }

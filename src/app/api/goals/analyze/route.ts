@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
+import { hasWorkspaceAccess } from "@/lib/server/database";
 import { createOpenAIResponse, getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 
 export const runtime = "nodejs";
@@ -18,6 +19,7 @@ const analysisSchema = z.object({
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser(request);
   if (!user) return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
+  if (!await hasWorkspaceAccess(user.id, "operator")) return NextResponse.json({ error: "Accès opérateur requis" }, { status: 403 });
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Décrivez l’objectif avec au moins 10 caractères." }, { status: 400 });
 

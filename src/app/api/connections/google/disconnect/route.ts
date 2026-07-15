@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { deleteWorkspaceSecret, getDecryptedIntegrationSecret } from "@/lib/server/admin-service";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { getWorkspaceIdForUser, patchWorkspaceRecord } from "@/lib/server/database";
+import { getWorkspaceIdForUser, hasWorkspaceAccess, patchWorkspaceRecord } from "@/lib/server/database";
 import { googleConnectionIds, revokeGoogleToken } from "@/lib/server/google-oauth";
 
 const schema = z.object({ connectionId: z.enum(googleConnectionIds) });
@@ -10,6 +10,7 @@ const schema = z.object({ connectionId: z.enum(googleConnectionIds) });
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser(request);
   if (!user) return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
+  if (!await hasWorkspaceAccess(user.id, "admin")) return NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 });
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Origine non autorisée" }, { status: 403 });
   const parsed = schema.safeParse(await request.json().catch(() => null));

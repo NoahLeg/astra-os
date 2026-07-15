@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDecryptedIntegrationSecret } from "@/lib/server/admin-service";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { getWorkspaceIdForUser, saveWorkspaceRecord } from "@/lib/server/database";
+import { getWorkspaceIdForUser, hasWorkspaceAccess, saveWorkspaceRecord } from "@/lib/server/database";
 import { refreshGoogleAccessToken } from "@/lib/server/google-oauth";
 import type { ActivityEvent } from "@/types";
 
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
   }
+  if (!await hasWorkspaceAccess(user.id, "operator")) return NextResponse.json({ error: "Accès opérateur requis" }, { status: 403 });
 
   const parsed = sendEmailSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

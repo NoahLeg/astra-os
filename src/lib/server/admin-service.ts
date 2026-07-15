@@ -1,13 +1,18 @@
 import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import type { AccessLevel, AccountStatus } from "@/types";
 
 export interface AdminAccount {
   id: string;
   email: string;
   fullName: string;
   role: string;
+  accessLevel: AccessLevel;
+  status: AccountStatus;
   createdAt: string;
+  lastSignInAt?: string;
+  emailConfirmed: boolean;
 }
 
 export interface AdminWorkspace {
@@ -26,6 +31,15 @@ export interface AdminSecret {
   baseUrl?: string;
   maskedValue: string;
   updatedAt: string;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId?: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -47,6 +61,34 @@ async function adminRequest<T>(pathName: string, init: RequestInit = {}): Promis
   if (!response.ok) throw new Error(`Administration Supabase ${response.status}: ${await response.text()}`);
   if (response.status === 204 || response.headers.get("content-length") === "0") return undefined as T;
   return response.json() as Promise<T>;
+}
+
+async function authAdminRequest<T>(pathName: string, init: RequestInit = {}): Promise<T> {
+  if (!supabaseUrl || !supabaseSecretKey) throw new Error("Supabase Auth Admin n’est pas configuré");
+  const response = await fetch(`${supabaseUrl}/auth/v1/${pathName}`, {
+    ...init,
+    cache: "no-store",
+    headers: {
+      apikey: supabaseSecretKey,
+      Authorization: `Bearer ${supabaseSecretKey}`,
+      "Content-Type": "application/json",
+      ...init.headers,
+    },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { message?: string; msg?: string; error_description?: string };
+    throw new Error(payload.message ?? payload.msg ?? payload.error_description ?? `Supabase Auth ${response.status}`);
+  }
+  if (response.status === 204 || response.headers.get("content-length") === "0") return undefined as T;
+  return response.json() as Promise<T>;
+}
+
+function normalizeAccessLevel(value?: string, role?: string): AccessLevel {
+  if (value === "viewer" || value === "operator" || value === "admin") return value;
+  if (role === "owner" || role === "admin") return "admin";
+  if (role === "member") return "operator";
+  return "viewer";
 }
 
 function getEncryptionKey() {
@@ -71,12 +113,14 @@ function decryptSecret(encryptedValue: string, encryptionIv: string, authTag: st
 }
 
 export async function listAdminWorkspaces(): Promise<AdminWorkspace[]> {
-  const [workspaces, memberships, profiles] = await Promise.all([
+  const [workspaces, memberships, profiles, authUsers] = await Promise.all([
     adminRequest<Array<{ id: string; name: string; slug: string; created_at: string }>>("workspaces?select=id,name,slug,created_at&order=created_at.desc"),
-    adminRequest<Array<{ workspace_id: string; user_id: string; role: string }>>("workspace_members?select=workspace_id,user_id,role"),
+    adminRequest<Array<{ workspace_id: string; user_id: string; role: string; access_level?: string; status?: string }>>("workspace_members?select=workspace_id,user_id,role,access_level,status"),
     adminRequest<Array<{ id: string; email: string; full_name: string; created_at: string }>>("profiles?select=id,email,full_name,created_at"),
+    authAdminRequest<{ users?: Array<{ id: string; last_sign_in_at?: string; email_confirmed_at?: string }> }>("admin/users?page=1&per_page=1000").catch(() => ({ users: [] })),
   ]);
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const authUsersById = new Map((authUsers.users ?? []).map((user) => [user.id, user]));
   return workspaces.map((workspace) => ({
     id: workspace.id,
     name: workspace.name,
@@ -84,9 +128,57 @@ export async function listAdminWorkspaces(): Promise<AdminWorkspace[]> {
     createdAt: workspace.created_at,
     accounts: memberships.filter((membership) => membership.workspace_id === workspace.id).flatMap((membership) => {
       const profile = profilesById.get(membership.user_id);
-      return profile ? [{ id: profile.id, email: profile.email, fullName: profile.full_name, role: membership.role, createdAt: profile.created_at }] : [];
+      const authUser = authUsersById.get(membership.user_id);
+      return profile ? [{ id: profile.id, email: profile.email, fullName: profile.full_name || profile.email.split("@")[0], role: membership.role, accessLevel: normalizeAccessLevel(membership.access_level, membership.role), status: membership.status === "suspended" ? "suspended" : "active", createdAt: profile.created_at, lastSignInAt: authUser?.last_sign_in_at, emailConfirmed: Boolean(authUser?.email_confirmed_at) }] : [];
     }),
   }));
+}
+
+export async function listWorkspaceAuditLogs(workspaceId: string): Promise<AdminAuditLog[]> {
+  const rows = await adminRequest<Array<{ id: string; action: string; target_type: string; target_id?: string; metadata?: Record<string, unknown>; created_at: string }>>(
+    `audit_logs?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=id,action,target_type,target_id,metadata,created_at&order=created_at.desc&limit=100`,
+  );
+  return rows.map((row) => ({ id: row.id, action: row.action, targetType: row.target_type, targetId: row.target_id, metadata: row.metadata ?? {}, createdAt: row.created_at }));
+}
+
+export async function inviteWorkspaceMember(input: { workspaceId: string; email: string; fullName: string; accessLevel: AccessLevel; redirectTo: string; actorUserId: string }) {
+  const normalizedEmail = input.email.trim().toLowerCase();
+  const existingProfiles = await adminRequest<Array<{ id: string }>>(`profiles?email=eq.${encodeURIComponent(normalizedEmail)}&select=id&limit=1`);
+  let userId: string | undefined = existingProfiles[0]?.id;
+  if (!userId) {
+    const response = await authAdminRequest<{ id?: string; user?: { id?: string } }>("invite", {
+      method: "POST",
+      body: JSON.stringify({ email: normalizedEmail, data: { full_name: input.fullName }, redirect_to: input.redirectTo }),
+    });
+    userId = response.user?.id ?? response.id;
+  }
+  if (!userId) throw new Error("Supabase n’a pas renvoyé le compte invité.");
+  const existingMemberships = await adminRequest<Array<{ workspace_id: string }>>(`workspace_members?user_id=eq.${encodeURIComponent(userId)}&select=workspace_id`);
+  if (existingMemberships.some((membership) => membership.workspace_id !== input.workspaceId)) {
+    throw new Error("Ce compte appartient déjà à une autre entreprise. Utilisez une adresse dédiée ou ajoutez d’abord un sélecteur d’espace.");
+  }
+  await adminRequest("profiles?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: userId, email: normalizedEmail, full_name: input.fullName, updated_at: new Date().toISOString() }) });
+  const role = input.accessLevel === "admin" ? "admin" : input.accessLevel === "operator" ? "member" : "viewer";
+  await adminRequest("workspace_members?on_conflict=workspace_id,user_id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ workspace_id: input.workspaceId, user_id: userId, role, access_level: input.accessLevel, status: "active", invited_by: input.actorUserId, updated_at: new Date().toISOString() }) });
+  await writeAuditLog({ workspaceId: input.workspaceId, actorUserId: input.actorUserId, action: "workspace_member.invited", targetType: "account", targetId: userId, metadata: { email: normalizedEmail, accessLevel: input.accessLevel } });
+  return userId;
+}
+
+export async function updateWorkspaceMember(input: { workspaceId: string; userId: string; accessLevel?: AccessLevel; status?: AccountStatus; actorUserId: string }) {
+  const changes: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (input.accessLevel) {
+    changes.access_level = input.accessLevel;
+    changes.role = input.accessLevel === "admin" ? "admin" : input.accessLevel === "operator" ? "member" : "viewer";
+  }
+  if (input.status) changes.status = input.status;
+  await adminRequest(`workspace_members?workspace_id=eq.${encodeURIComponent(input.workspaceId)}&user_id=eq.${encodeURIComponent(input.userId)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(changes) });
+  await writeAuditLog({ workspaceId: input.workspaceId, actorUserId: input.actorUserId, action: "workspace_member.updated", targetType: "account", targetId: input.userId, metadata: { accessLevel: input.accessLevel, status: input.status } });
+}
+
+export async function deleteManagedAccount(input: { workspaceId: string; userId: string; actorUserId: string }) {
+  if (input.userId === input.actorUserId) throw new Error("Vous ne pouvez pas supprimer votre propre compte Super Admin.");
+  await writeAuditLog({ workspaceId: input.workspaceId, actorUserId: input.actorUserId, action: "account.deleted", targetType: "account", targetId: input.userId });
+  await authAdminRequest(`admin/users/${encodeURIComponent(input.userId)}`, { method: "DELETE" });
 }
 
 export async function listWorkspaceSecrets(workspaceId: string): Promise<AdminSecret[]> {

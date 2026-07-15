@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getWorkspaceData, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
+import { deleteWorkspaceRecord, getUserWorkspaceContext, getWorkspaceData, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import type { WorkspaceData } from "@/types";
 
@@ -11,13 +11,31 @@ const collectionSchema = z.enum(["goals", "projects", "agents", "memories", "aut
 const mutationSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("create"), collection: collectionSchema, record: z.object({ id: z.string().min(1) }).passthrough() }),
   z.object({ operation: z.literal("patch"), collection: collectionSchema, id: z.string().min(1), changes: z.record(z.string(), z.unknown()) }),
+  z.object({ operation: z.literal("delete"), collection: collectionSchema, id: z.string().min(1) }),
 ]);
+
+function operatorCanMutate(mutation: z.infer<typeof mutationSchema>) {
+  if (["goals", "projects", "memories", "automations"].includes(mutation.collection)) return true;
+  if (mutation.operation !== "patch") return false;
+  const keys = Object.keys(mutation.changes);
+  if (mutation.collection === "agents") return keys.every((key) => key === "enabled" || key === "status");
+  if (mutation.collection === "approvals") return keys.length > 0 && keys.every((key) => key === "status");
+  return false;
+}
 
 export async function GET(request: Request) {
   const user = await getAuthenticatedUser(request);
   if (!user) return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
   try {
-    return NextResponse.json(await getWorkspaceData(user.id));
+    const [data, context] = await Promise.all([getWorkspaceData(user.id), getUserWorkspaceContext(user.id)]);
+    if (!context || context.status !== "active") return NextResponse.json({ error: "Accès suspendu" }, { status: 403 });
+    if (context.accessLevel === "viewer") {
+      return NextResponse.json({ ...data, agents: [], memories: [], automations: [], approvals: [], connections: [] });
+    }
+    if (context.accessLevel === "operator") {
+      return NextResponse.json({ ...data, connections: [] });
+    }
+    return NextResponse.json(data);
   } catch {
     return NextResponse.json({ error: "La base de données est temporairement indisponible" }, { status: 503 });
   }
@@ -34,9 +52,17 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Mutation invalide", details: parsed.error.flatten() }, { status: 400 });
 
   try {
+    const context = await getUserWorkspaceContext(user.id);
+    if (!context || context.status !== "active" || context.accessLevel === "viewer") return NextResponse.json({ error: "Accès opérateur requis" }, { status: 403 });
+    if (context.accessLevel !== "admin" && !operatorCanMutate(parsed.data)) return NextResponse.json({ error: "Cette modification nécessite un accès administrateur" }, { status: 403 });
     if (parsed.data.operation === "create") {
       await saveWorkspaceRecord(parsed.data.collection, parsed.data.record as unknown as WorkspaceData[typeof parsed.data.collection][number], user.id);
       return NextResponse.json(parsed.data.record, { status: 201 });
+    }
+    if (parsed.data.operation === "delete") {
+      const deleted = await deleteWorkspaceRecord(parsed.data.collection, parsed.data.id, user.id);
+      if (!deleted) return NextResponse.json({ error: "Enregistrement introuvable" }, { status: 404 });
+      return NextResponse.json({ success: true });
     }
     const updated = await patchWorkspaceRecord(parsed.data.collection, parsed.data.id, parsed.data.changes, user.id);
     if (!updated) return NextResponse.json({ error: "Enregistrement introuvable" }, { status: 404 });

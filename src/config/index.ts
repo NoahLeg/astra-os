@@ -1,19 +1,54 @@
-import type { AIModel, AutonomyLevel } from "@/types";
+import type { AccessLevel, AIModel, AutonomyLevel, WorkspaceSettings } from "@/types";
 
 export const PRODUCT_NAME = "Astra OS";
 
 export const routes = [
-  { label: "Tableau de bord", href: "/", icon: "LayoutDashboard" },
-  { label: "Objectifs", href: "/goals", icon: "Target" },
-  { label: "Projets", href: "/projects", icon: "FolderKanban" },
-  { label: "Centre d’activité", href: "/activity", icon: "Activity" },
-  { label: "Agents", href: "/agents", icon: "Bot" },
-  { label: "Mémoire", href: "/memory", icon: "BrainCircuit" },
-  { label: "Automatisations", href: "/automations", icon: "Workflow" },
-  { label: "Connexions", href: "/connections", icon: "PlugZap" },
-  { label: "Validations", href: "/approvals", icon: "ShieldCheck" },
-  { label: "Paramètres", href: "/settings", icon: "Settings2" },
+  { label: "Tableau de bord", href: "/", icon: "LayoutDashboard", minAccess: "viewer" },
+  { label: "Objectifs", href: "/goals", icon: "Target", minAccess: "viewer" },
+  { label: "Projets", href: "/projects", icon: "FolderKanban", minAccess: "viewer" },
+  { label: "Centre d’activité", href: "/activity", icon: "Activity", minAccess: "viewer" },
+  { label: "Agents", href: "/agents", icon: "Bot", minAccess: "operator" },
+  { label: "Mémoire", href: "/memory", icon: "BrainCircuit", minAccess: "operator" },
+  { label: "Automatisations", href: "/automations", icon: "Workflow", minAccess: "operator" },
+  { label: "Connexions", href: "/connections", icon: "PlugZap", minAccess: "admin" },
+  { label: "Validations", href: "/approvals", icon: "ShieldCheck", minAccess: "operator" },
+  { label: "Paramètres", href: "/settings", icon: "Settings2", minAccess: "admin" },
 ] as const;
+
+export const accessLevels: Array<{ id: AccessLevel; name: string; description: string }> = [
+  { id: "viewer", name: "Lecture", description: "Consulte les tableaux de bord, objectifs, projets et activités." },
+  { id: "operator", name: "Opérateur", description: "Utilise les agents, la mémoire, les validations et les automatisations." },
+  { id: "admin", name: "Administrateur", description: "Configure les connexions, permissions, budgets et paramètres de l’entreprise." },
+];
+
+export const accessRank: Record<AccessLevel, number> = { viewer: 0, operator: 1, admin: 2 };
+
+export function hasAccess(current: AccessLevel | undefined, required: AccessLevel) {
+  return accessRank[current ?? "viewer"] >= accessRank[required];
+}
+
+export const defaultWorkspaceSettings: WorkspaceSettings = {
+  locale: "fr",
+  compactMode: false,
+  enabledModelIds: ["gpt"],
+  defaultModelId: "gpt",
+  defaultAutonomy: 2,
+  telemetryEnabled: false,
+  allowMemoryLearning: true,
+  memoryEnabled: true,
+  memoryApprovalRequired: true,
+  auditLogging: true,
+  sessionTimeoutMinutes: 480,
+  monthlyBudget: 100,
+  budgetAlertPercent: 80,
+  blockOnBudgetLimit: true,
+  notificationEmail: true,
+  notificationApprovals: true,
+  notificationErrors: true,
+  weeklyDigest: true,
+  dataRetentionDays: 365,
+  exportFormat: "json",
+};
 
 export const autonomyLevels: Array<{ level: AutonomyLevel; name: string; description: string }> = [
   { level: 0, name: "Répond uniquement", description: "Analyse et répond, sans proposer d’action." },
