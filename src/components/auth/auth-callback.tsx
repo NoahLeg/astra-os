@@ -11,14 +11,15 @@ export function AuthCallback() {
   useEffect(() => {
     const finishAuthentication = async () => {
       const fragment = new URLSearchParams(window.location.hash.slice(1));
-      const fragmentError = fragment.get("error_description");
+      const fragmentError = fragment.get("error_description") ?? searchParams.get("error_description");
       const accessToken = fragment.get("access_token");
       const refreshToken = fragment.get("refresh_token");
       if (fragmentError || !accessToken || !refreshToken) {
         setError(fragmentError ?? "Ce lien de connexion est incomplet ou expiré.");
         return;
       }
-      const response = await fetch("/api/auth/adopt-session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken, refreshToken, expiresIn: Number(fragment.get("expires_in") ?? 3600) }) });
+      const expiresIn = Number(fragment.get("expires_in") ?? 3_600);
+      const response = await fetch("/api/auth/adopt-session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken, refreshToken, expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3_600 }) });
       const result = await response.json().catch(() => ({})) as { error?: string; onboardingCompleted?: boolean; landingPage?: string };
       if (!response.ok) {
         setError(result.error ?? "La session n’a pas pu être validée.");

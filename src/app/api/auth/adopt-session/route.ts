@@ -4,7 +4,11 @@ import { applySessionCookies, getUser } from "@/lib/server/auth";
 import { createTenantForUser, getAccountProfile } from "@/lib/server/database";
 import { getWorkspaceSubscription } from "@/lib/server/billing";
 
-const schema = z.object({ accessToken: z.string().min(20), refreshToken: z.string().min(20), expiresIn: z.coerce.number().int().positive().max(86_400) });
+const schema = z.object({
+  accessToken: z.string().trim().min(1).max(16_384),
+  refreshToken: z.string().trim().min(1).max(16_384),
+  expiresIn: z.coerce.number().int().positive().max(31_536_000).default(3_600),
+});
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
@@ -30,7 +34,12 @@ export async function POST(request: Request) {
       onboardingCompleted: subscription.onboardingCompleted,
       landingPage: profile?.preferences.landingPage ?? "/",
     });
-    applySessionCookies(response, { access_token: parsed.data.accessToken, refresh_token: parsed.data.refreshToken, expires_in: parsed.data.expiresIn, user });
+    applySessionCookies(response, {
+      access_token: parsed.data.accessToken,
+      refresh_token: parsed.data.refreshToken,
+      expires_in: Math.min(parsed.data.expiresIn, 86_400),
+      user,
+    });
     return response;
   } catch {
     return NextResponse.json({ error: "Le lien a expiré ou est invalide" }, { status: 401 });
