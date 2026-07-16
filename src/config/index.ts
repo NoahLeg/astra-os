@@ -1,4 +1,4 @@
-import type { AccessLevel, AIModel, AutonomyLevel, WorkspaceSettings } from "@/types";
+import type { AccessLevel, AIModel, AutonomyLevel, FeatureKey, SubscriptionPlan, WorkspaceSettings } from "@/types";
 
 export const PRODUCT_NAME = "Astra OS";
 
@@ -7,11 +7,13 @@ export const routes = [
   { label: "Objectifs", href: "/goals", icon: "Target", minAccess: "viewer" },
   { label: "Projets", href: "/projects", icon: "FolderKanban", minAccess: "viewer" },
   { label: "Centre d’activité", href: "/activity", icon: "Activity", minAccess: "viewer" },
-  { label: "Agents", href: "/agents", icon: "Bot", minAccess: "operator" },
-  { label: "Mémoire", href: "/memory", icon: "BrainCircuit", minAccess: "operator" },
-  { label: "Automatisations", href: "/automations", icon: "Workflow", minAccess: "operator" },
-  { label: "Connexions", href: "/connections", icon: "PlugZap", minAccess: "admin" },
-  { label: "Validations", href: "/approvals", icon: "ShieldCheck", minAccess: "operator" },
+  { label: "Agents", href: "/agents", icon: "Bot", minAccess: "operator", feature: "agents" },
+  { label: "Mission multi-agents", href: "/orchestration", icon: "Network", minAccess: "operator", feature: "multi_agent" },
+  { label: "Mémoire", href: "/memory", icon: "BrainCircuit", minAccess: "operator", feature: "memory" },
+  { label: "Automatisations", href: "/automations", icon: "Workflow", minAccess: "operator", feature: "automations" },
+  { label: "Connexions", href: "/connections", icon: "PlugZap", minAccess: "admin", feature: "connectors" },
+  { label: "Validations", href: "/approvals", icon: "ShieldCheck", minAccess: "operator", feature: "agents" },
+  { label: "Abonnement", href: "/billing", icon: "CreditCard", minAccess: "admin" },
   { label: "Paramètres", href: "/settings", icon: "Settings2", minAccess: "admin" },
 ] as const;
 
@@ -26,6 +28,52 @@ export const accessRank: Record<AccessLevel, number> = { viewer: 0, operator: 1,
 export function hasAccess(current: AccessLevel | undefined, required: AccessLevel) {
   return accessRank[current ?? "viewer"] >= accessRank[required];
 }
+
+export function hasFeature(features: FeatureKey[] | undefined, required?: FeatureKey) {
+  return !required || Boolean(features?.includes(required));
+}
+
+export const featureLabels: Record<FeatureKey, string> = {
+  assistant: "Assistant IA",
+  goals: "Objectifs et plans",
+  memory: "Mémoire d'entreprise",
+  agents: "Agents spécialisés",
+  connectors: "Connecteurs Google",
+  automations: "Automatisations",
+  multi_agent: "Orchestration multi-agents",
+  team_admin: "Gestion avancée des équipes",
+};
+
+export const subscriptionPlans: SubscriptionPlan[] = [
+  {
+    id: "starter",
+    name: "Starter",
+    description: "Pour structurer les premiers objectifs avec Astra.",
+    monthlyPriceCents: 0,
+    apiLimit: 100,
+    maxAgents: 0,
+    features: ["assistant", "goals", "memory"],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    description: "Pour automatiser le travail d'une petite équipe.",
+    monthlyPriceCents: 4900,
+    apiLimit: 2_000,
+    maxAgents: 5,
+    features: ["assistant", "goals", "memory", "agents", "connectors", "automations"],
+    highlighted: true,
+  },
+  {
+    id: "business",
+    name: "Business",
+    description: "Pour coordonner plusieurs agents et plusieurs utilisateurs.",
+    monthlyPriceCents: 14900,
+    apiLimit: 10_000,
+    maxAgents: 10,
+    features: ["assistant", "goals", "memory", "agents", "connectors", "automations", "multi_agent", "team_admin"],
+  },
+];
 
 export const defaultWorkspaceSettings: WorkspaceSettings = {
   locale: "fr",

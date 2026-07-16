@@ -2,10 +2,10 @@
 
 import { create } from "zustand";
 import { workspaceService } from "@/services";
-import type { AccessLevel, Agent, ApprovalRequest, Automation, Goal, MemoryItem, WorkspaceData } from "@/types";
+import type { AccessLevel, Agent, ApprovalRequest, Automation, Goal, MemoryItem, MultiAgentMission, WorkspaceData, WorkspaceSubscription } from "@/types";
 
 interface AppState extends WorkspaceData {
-  account?: { id: string; email: string; fullName?: string; isAdmin?: boolean; accessLevel?: AccessLevel; workspaceName?: string };
+  account?: { id: string; email: string; fullName?: string; isAdmin?: boolean; accessLevel?: AccessLevel; workspaceName?: string; subscription?: WorkspaceSubscription };
   sidebarCollapsed: boolean;
   assistantOpen: boolean;
   commandOpen: boolean;
@@ -26,6 +26,7 @@ interface AppState extends WorkspaceData {
   addAutomation: (automation: Automation) => void;
   updateAutomation: (id: string, changes: Partial<Automation>) => void;
   deleteAutomation: (id: string) => void;
+  addMission: (mission: MultiAgentMission) => void;
 }
 
 function getErrorMessage(error: unknown) {
@@ -46,6 +47,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   automations: [],
   connections: [],
   activities: [],
+  missions: [],
   hydrateFromDatabase: async () => {
     try {
       const data = await workspaceService.load();
@@ -108,4 +110,5 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({ automations: state.automations.filter((item) => item.id !== id) }));
     void workspaceService.delete("automations", id).catch((error) => set({ automations: previous, dataError: getErrorMessage(error) }));
   },
+  addMission: (mission) => set((state) => ({ missions: [mission, ...state.missions.filter((item) => item.id !== mission.id)] })),
 }));

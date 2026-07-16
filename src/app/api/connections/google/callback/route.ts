@@ -3,6 +3,7 @@ import { saveWorkspaceSecret } from "@/lib/server/admin-service";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { getWorkspaceIdForUser, hasWorkspaceAccess, patchWorkspaceRecord } from "@/lib/server/database";
 import { exchangeGoogleAuthorizationCode, isGoogleConnectionId } from "@/lib/server/google-oauth";
+import { requireSubscriptionFeature } from "@/lib/server/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
   if (oauthError || !code) return redirectToConnections(request, { error: oauthError === "access_denied" ? "Autorisation Google refusée." : "Google n’a pas renvoyé de code d’autorisation." });
 
   try {
+    await requireSubscriptionFeature(user.id, "connectors");
     const workspaceId = await getWorkspaceIdForUser(user.id);
     if (!workspaceId) throw new Error("Aucun espace de travail associé à ce compte.");
     const token = await exchangeGoogleAuthorizationCode({ code, requestUrl: request.url });

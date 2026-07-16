@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { createOpenAIResponse, getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 import { getWorkspaceConfiguration, getWorkspaceData } from "@/lib/server/database";
+import { BillingAccessError, consumeApiUsage } from "@/lib/server/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Message invalide" }, { status: 400 });
 
   try {
+    await consumeApiUsage(user.id, "assistant", 1);
     const [configuration, workspace, workspaceConfiguration] = await Promise.all([
       getOpenAIConfiguration(user.id),
       getWorkspaceData(user.id),
@@ -35,6 +37,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ content, model: configuration.model });
   } catch (error) {
+    if (error instanceof BillingAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof OpenAIRequestError) return NextResponse.json({ error: error.message }, { status: error.status });
     const message = error instanceof Error ? error.message : "Le Coordinateur est temporairement indisponible.";
     return NextResponse.json({ error: message }, { status: 503 });

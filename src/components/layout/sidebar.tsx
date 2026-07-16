@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
-import { PRODUCT_NAME, hasAccess, routes } from "@/config";
+import { PRODUCT_NAME, hasAccess, hasFeature, routes } from "@/config";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -13,7 +13,7 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, account, agents, approvals } = useAppStore();
   const displayName = account?.fullName || account?.email.split("@")[0] || "Utilisateur";
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  const visibleRoutes = routes.filter((route) => hasAccess(account?.accessLevel, route.minAccess));
+  const visibleRoutes = routes.filter((route) => hasAccess(account?.accessLevel, route.minAccess) && hasFeature(account?.subscription?.features, "feature" in route ? route.feature : undefined));
 
   return (
     <aside className={cn("fixed inset-y-0 left-0 z-50 hidden flex-col border-r bg-card/90 backdrop-blur-xl transition-all duration-300 lg:flex", sidebarCollapsed ? "w-[76px]" : "w-[248px]")}>

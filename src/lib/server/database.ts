@@ -20,6 +20,7 @@ const seedData: WorkspaceData = {
   approvals,
   connections,
   activities,
+  missions: [],
 };
 
 const tenantSeedData: WorkspaceData = {
@@ -31,6 +32,7 @@ const tenantSeedData: WorkspaceData = {
   approvals: [],
   connections: connections.map((connection) => ({ ...connection, status: "disconnected" })),
   activities: [],
+  missions: [],
 };
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -38,7 +40,15 @@ const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABAS
 const useSupabase = Boolean(supabaseUrl && supabaseSecretKey);
 
 function emptyWorkspace(): WorkspaceData {
-  return { goals: [], projects: [], agents: [], memories: [], automations: [], approvals: [], connections: [], activities: [] };
+  return { goals: [], projects: [], agents: [], memories: [], automations: [], approvals: [], connections: [], activities: [], missions: [] };
+}
+
+export function isSupabaseDatabaseEnabled() {
+  return useSupabase;
+}
+
+export function serverDatabaseRequest<T>(pathName: string, init: RequestInit = {}) {
+  return supabaseRequest<T>(pathName, init);
 }
 
 function flattenSeedData(workspaceId?: string, data: WorkspaceData = seedData) {

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/components/layout/theme-provider";
 import { useAppStore } from "@/stores/app-store";
+import type { WorkspaceSubscription } from "@/types";
 
 function ClientRuntime({ children }: { children: React.ReactNode }) {
   const hydrateFromDatabase = useAppStore((state) => state.hydrateFromDatabase);
@@ -24,6 +25,7 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
       const session = await sessionResponse.json() as {
         user: { id: string; email: string; user_metadata?: { full_name?: string } };
         account?: { fullName?: string; accessLevel?: "viewer" | "operator" | "admin"; workspaceName?: string };
+        subscription?: WorkspaceSubscription;
         isAdmin?: boolean;
       };
       setAccount({
@@ -32,6 +34,7 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
         fullName: session.account?.fullName ?? session.user.user_metadata?.full_name,
         accessLevel: session.account?.accessLevel,
         workspaceName: session.account?.workspaceName,
+        subscription: session.subscription,
         isAdmin: session.isAdmin,
       });
       await hydrateFromDatabase();

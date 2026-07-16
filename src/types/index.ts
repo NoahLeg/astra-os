@@ -4,6 +4,9 @@ export type Priority = "low" | "medium" | "high";
 export type AutonomyLevel = 0 | 1 | 2 | 3 | 4;
 export type AccessLevel = "viewer" | "operator" | "admin";
 export type AccountStatus = "active" | "suspended";
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid";
+export type FeatureKey = "assistant" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin";
+export type AgentToolName = "send_email" | "create_calendar_event" | "create_drive_file";
 
 export interface User {
   id: string;
@@ -25,6 +28,31 @@ export interface AccountProfile {
   status: AccountStatus;
   workspaceId: string;
   workspaceName: string;
+}
+
+export interface SubscriptionPlan {
+  id: "starter" | "pro" | "business";
+  name: string;
+  description: string;
+  monthlyPriceCents: number;
+  apiLimit: number;
+  maxAgents: number;
+  features: FeatureKey[];
+  highlighted?: boolean;
+}
+
+export interface WorkspaceSubscription {
+  workspaceId: string;
+  planId: SubscriptionPlan["id"];
+  planName: string;
+  status: SubscriptionStatus;
+  apiUsage: number;
+  apiLimit: number;
+  usageResetAt: string;
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd: boolean;
+  features: FeatureKey[];
+  stripeConfigured: boolean;
 }
 
 export interface WorkspaceSettings {
@@ -87,7 +115,25 @@ export interface AgentExecution {
   confidence: number;
   model: string;
   activity: ActivityEvent;
+  approval?: ApprovalRequest;
 }
+
+export interface SendEmailToolCall {
+  tool: "send_email";
+  arguments: { to: string; subject: string; body: string };
+}
+
+export interface CreateCalendarEventToolCall {
+  tool: "create_calendar_event";
+  arguments: { title: string; description?: string; startAt: string; endAt: string; attendees: string[]; timeZone: string };
+}
+
+export interface CreateDriveFileToolCall {
+  tool: "create_drive_file";
+  arguments: { name: string; content: string; mimeType: "text/plain" | "text/markdown" };
+}
+
+export type AgentToolCall = SendEmailToolCall | CreateCalendarEventToolCall | CreateDriveFileToolCall;
 
 export interface GoalAnalysis {
   summary: string;
@@ -222,6 +268,9 @@ export interface ApprovalRequest {
   createdAt: string;
   dataUsed: string[];
   model: string;
+  toolCall?: AgentToolCall;
+  executedAt?: string;
+  executionResult?: string;
 }
 
 export interface ToolExecution {
@@ -245,6 +294,33 @@ export interface ActivityEvent {
   tool?: string;
 }
 
+export interface MissionAgentResult {
+  agentId: string;
+  agentName: string;
+  instruction: string;
+  result: string;
+  confidence: number;
+  status: "completed" | "approval" | "error";
+  approvalId?: string;
+}
+
+export interface MultiAgentMission {
+  id: string;
+  title: string;
+  objective: string;
+  summary: string;
+  status: "active" | "completed" | "error";
+  progress: number;
+  autonomyLevel: AutonomyLevel;
+  agentIds: string[];
+  plan: Array<{ agentId: string; instruction: string }>;
+  results: MissionAgentResult[];
+  finalResult?: string;
+  approvalIds: string[];
+  createdAt: string;
+  completedAt?: string;
+}
+
 export interface WorkspaceData {
   goals: Goal[];
   projects: Project[];
@@ -254,6 +330,12 @@ export interface WorkspaceData {
   approvals: ApprovalRequest[];
   connections: Connection[];
   activities: ActivityEvent[];
+  missions: MultiAgentMission[];
+}
+
+export interface MissionExecution {
+  mission: MultiAgentMission;
+  model: string;
 }
 
 export interface AutomationExecution {
@@ -262,6 +344,7 @@ export interface AutomationExecution {
   model: string;
   activity: ActivityEvent;
   automation: Automation;
+  approval?: ApprovalRequest;
 }
 
 export interface AssistantMessage {

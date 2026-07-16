@@ -53,7 +53,7 @@ export function AutomationsPage() {
     try {
       const execution = await automationService.run(automation.id);
       await hydrateFromDatabase();
-      toast.success(`Workflow terminé avec ${execution.confidence} % de confiance`);
+      toast.success(execution.approval ? `Workflow préparé : une action attend votre validation` : `Workflow terminé avec ${execution.confidence} % de confiance`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Exécution impossible");
     } finally {

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { hasWorkspaceAccess } from "@/lib/server/database";
 import { createGoogleAuthorizationUrl, isGoogleConnectionId } from "@/lib/server/google-oauth";
+import { requireSubscriptionFeature } from "@/lib/server/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
   if (!isGoogleConnectionId(connectionId)) return NextResponse.redirect(new URL("/connections?error=unsupported_google_connection", request.url));
 
   try {
+    await requireSubscriptionFeature(user.id, "connectors");
     const state = `${connectionId}.${randomUUID()}`;
     const response = NextResponse.redirect(createGoogleAuthorizationUrl({ connectionId, state, requestUrl: request.url }));
     response.cookies.set("astra-google-oauth-state", state, {

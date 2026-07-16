@@ -5,17 +5,17 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Bot, Search, Sparkles, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { routes } from "@/config";
+import { hasAccess, hasFeature, routes } from "@/config";
 import { useAppStore } from "@/stores/app-store";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 
 export function CommandPalette() {
   const router = useRouter();
-  const { commandOpen, setCommandOpen, goals, agents, setAssistantOpen } = useAppStore();
+  const { commandOpen, setCommandOpen, goals, agents, setAssistantOpen, account } = useAppStore();
   const [query, setQuery] = useState("");
   if (!commandOpen) return null;
   const q = query.toLowerCase();
-  const routeResults = routes.filter((item) => item.label.toLowerCase().includes(q));
+  const routeResults = routes.filter((item) => item.label.toLowerCase().includes(q) && hasAccess(account?.accessLevel, item.minAccess) && hasFeature(account?.subscription?.features, "feature" in item ? item.feature : undefined));
   const goalResults = goals.filter((item) => item.title.toLowerCase().includes(q));
   const agentResults = agents.filter((item) => item.name.toLowerCase().includes(q));
   const go = (href: string) => { router.push(href); setCommandOpen(false); };

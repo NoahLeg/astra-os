@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { hasWorkspaceAccess } from "@/lib/server/database";
 import { createOpenAIResponse, getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
+import { BillingAccessError, consumeApiUsage } from "@/lib/server/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Décrivez l’objectif avec au moins 10 caractères." }, { status: 400 });
 
   try {
+    await consumeApiUsage(user.id, "goals", 1);
     const configuration = await getOpenAIConfiguration(user.id);
     const content = await createOpenAIResponse({
       ...configuration,
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
     const analysis = analysisSchema.parse(JSON.parse(content));
     return NextResponse.json({ ...analysis, model: configuration.model });
   } catch (error) {
+    if (error instanceof BillingAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof OpenAIRequestError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Analyse impossible" }, { status: 502 });
   }

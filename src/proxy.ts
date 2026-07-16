@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_PUBLISHABLE_KEY) return NextResponse.next();
   const pathname = request.nextUrl.pathname;
-  if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/api/health" || pathname.startsWith("/auth/") || pathname.startsWith("/api/auth")) return NextResponse.next();
+  if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/api/health" || pathname === "/api/billing/webhook" || pathname.startsWith("/auth/") || pathname.startsWith("/api/auth")) return NextResponse.next();
   const hasSession = request.cookies.has("astra-access-token") || request.cookies.has("astra-refresh-token");
   if (hasSession) return NextResponse.next();
   if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Authentification requise" }, { status: 401 });

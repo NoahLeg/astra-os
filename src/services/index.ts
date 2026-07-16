@@ -1,4 +1,4 @@
-import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, Connection, Goal, GoalAnalysis, MemoryItem, Project, WorkspaceData, WorkspaceSettings } from "@/types";
+import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkspaceData, WorkspaceSettings, WorkspaceSubscription } from "@/types";
 import { apiClient, simulate } from "./api-client";
 
 type Collection = keyof WorkspaceData;
@@ -85,6 +85,23 @@ export const assistantService = {
       timeout: 65_000,
     })
   ).data,
+};
+
+export const orchestrationService = {
+  run: async (objective: string, agentIds: string[], autonomyLevel: number) => (await apiClient<MissionExecution>("/api/orchestration/run", {
+    method: "POST",
+    body: JSON.stringify({ objective, agentIds, autonomyLevel }),
+    timeout: 125_000,
+  })).data,
+};
+
+export const billingService = {
+  load: async () => (await apiClient<{ plans: SubscriptionPlan[]; subscription: WorkspaceSubscription }>("/api/billing", { cache: "no-store" })).data,
+  checkout: async (planId: SubscriptionPlan["id"]) => (await apiClient<{ url: string }>("/api/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify({ planId }),
+  })).data,
+  portal: async () => (await apiClient<{ url: string }>("/api/billing/portal", { method: "POST" })).data,
 };
 
 export const settingsService = {
