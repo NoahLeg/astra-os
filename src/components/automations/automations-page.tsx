@@ -28,6 +28,8 @@ const baseNodes: AutomationNode[] = [
 const toolOptions: Array<{ id: "auto" | AgentToolName; label: string; agentIds?: string[]; connectionId?: string }> = [
   { id: "auto", label: "Choix automatique — aucun outil imposé" },
   { id: "send_email", label: "Envoyer un e-mail Gmail", agentIds: ["coordinateur", "email"], connectionId: "gmail" },
+  { id: "create_email_draft", label: "Créer un brouillon Gmail", agentIds: ["coordinateur", "email"], connectionId: "gmail" },
+  { id: "organize_email", label: "Classer des e-mails Gmail", agentIds: ["coordinateur", "email"], connectionId: "gmail" },
   { id: "create_calendar_event", label: "Créer un événement Calendar", agentIds: ["coordinateur", "calendrier"], connectionId: "calendar" },
   { id: "create_drive_file", label: "Créer un fichier Drive", agentIds: ["coordinateur", "documents"], connectionId: "drive" },
 ];

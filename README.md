@@ -71,6 +71,7 @@ SUPABASE_SECRET_KEY=
 SUPER_ADMIN_EMAILS=admin@votre-domaine.fr
 SECRETS_ENCRYPTION_KEY=
 OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.4-mini
 ANTHROPIC_API_KEY=
 GOOGLE_GENERATIVE_AI_API_KEY=
 GOOGLE_CLIENT_ID=
@@ -78,6 +79,7 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_STARTER=
 STRIPE_PRICE_PRO=
 STRIPE_PRICE_BUSINESS=
 ```
@@ -146,7 +148,7 @@ La table active RLS et retire l’accès aux rôles `anon` et `authenticated`. S
 
 ### Authentification et multi-entreprises
 
-La page `/login` permet de se connecter ou de créer un compte par email et mot de passe. Lors de l’inscription, Astra crée automatiquement :
+La page `/login` permet de se connecter, de créer un compte par email et mot de passe, ou de continuer directement avec Google. Lors de la première authentification, Astra crée automatiquement :
 
 - un profil lié à `auth.users` ;
 - une entreprise dans `workspaces` ;
@@ -155,7 +157,15 @@ La page `/login` permet de se connecter ou de créer un compte par email et mot 
 
 Les sessions utilisent des cookies HTTP-only. `src/proxy.ts` effectue la redirection optimiste vers `/login`, puis chaque Route Handler revérifie réellement le JWT auprès de Supabase avant d’accéder aux données. Le Proxy n’est donc jamais utilisé comme unique contrôle d’autorisation.
 
-Dans Supabase Authentication → URL Configuration, ajoutez l’URL Vercel de production et vos URLs de preview autorisées. Dans Providers → Email, choisissez si la confirmation d’email est obligatoire avant la première connexion.
+Pour activer **Continuer avec Google** :
+
+1. dans Google Cloud, créez un client OAuth Web destiné à Supabase Auth ;
+2. ajoutez comme URI autorisée `https://<project-ref>.supabase.co/auth/v1/callback` ;
+3. dans Supabase Authentication → Providers → Google, activez le fournisseur et collez son Client ID et son Client Secret ;
+4. dans Supabase Authentication → URL Configuration, définissez le domaine Vercel comme Site URL ;
+5. ajoutez `http://localhost:3000/auth/callback` et `https://votre-domaine.vercel.app/auth/callback` aux Redirect URLs.
+
+Dans Providers → Email, choisissez si la confirmation d’email est obligatoire avant la première connexion. Les comptes Google existants retrouvent leur espace sans créer une seconde organisation.
 
 Le cycle de compte inclut la confirmation d’email, le renouvellement automatique de session, la déconnexion, l’oubli de mot de passe et la définition d’un nouveau mot de passe. Configurez `NEXT_PUBLIC_SITE_URL` avec le domaine de production et autorisez précisément `/auth/callback` dans Supabase.
 
@@ -245,7 +255,7 @@ Créer `src/services/graphql-client.ts`, conserver les interfaces métier, puis 
 
 ## Connecter Gmail, Google Calendar et Google Drive
 
-Ces trois connecteurs utilisent un vrai flux OAuth 2.0 serveur. Les refresh tokens sont chiffrés dans `integration_secrets`, isolés par workspace, testables depuis l’interface et révoqués lors de la déconnexion.
+Ces trois connecteurs partagent un vrai flux OAuth 2.0 Google Workspace côté serveur. Le refresh token unifié est chiffré dans `integration_secrets`, isolé par workspace, renouvelable sans intervention, testable depuis l’interface et révoqué lors de la déconnexion. Il n’est jamais envoyé au navigateur ni exposé à un agent.
 
 1. ouvrir [Google Cloud Console](https://console.cloud.google.com/) et créer ou sélectionner un projet ;
 2. activer Gmail API, Google Calendar API et Google Drive API ;
@@ -256,6 +266,8 @@ Ces trois connecteurs utilisent un vrai flux OAuth 2.0 serveur. Les refresh toke
 7. renseigner `GOOGLE_CLIENT_ID` et `GOOGLE_CLIENT_SECRET` dans `.env.local` et dans Vercel ;
 8. définir `GOOGLE_REDIRECT_URI` uniquement si vous voulez imposer explicitement une URL de callback ;
 9. redémarrer Next.js puis cliquer sur **Autoriser avec Google** dans `/connections`.
+
+L’autorisation couvre Gmail en lecture, brouillons, classement et envoi, ainsi que Calendar et Drive. Après le premier consentement hors ligne, les agents et automatisations réutilisent le refresh token serveur : il n’est pas nécessaire de reconnecter Google à chaque visite. Après une mise à jour des scopes, cliquez une fois sur **Réautoriser** pour obtenir les nouvelles permissions.
 
 Pendant les tests, ajoutez les adresses Gmail autorisées dans la liste des utilisateurs de test de l’écran de consentement Google. En production, les scopes sensibles Gmail peuvent nécessiter une validation Google.
 
@@ -281,11 +293,13 @@ Le constructeur d’automatisation expose des nœuds `trigger`, `condition`, `ag
 
 La page `/orchestration` rassemble de 2 à 5 agents pour une mission complexe. Le Coordinateur construit une délégation, les agents produisent leurs résultats puis une synthèse est enregistrée dans l’espace de travail.
 
-Les agents Email, Calendrier et Documents peuvent proposer respectivement l’envoi d’un e-mail Gmail, la création d’un événement Google Calendar ou d’un document Google Drive. Aucune action externe n’est exécutée pendant la réflexion : une demande détaillée apparaît d’abord dans `/approvals`, avec les données utilisées et une confirmation explicite.
+Les agents Email, Calendrier et Documents peuvent proposer respectivement la création d’un brouillon, le classement ou l’envoi d’un e-mail Gmail, la création d’un événement Google Calendar ou d’un document Google Drive. L’agent Email peut consulter un aperçu borné des métadonnées utiles de la boîte de réception, mais les contenus externes sont traités comme non fiables. Aucune modification externe n’est exécutée pendant la réflexion : une demande détaillée apparaît d’abord dans `/approvals`, avec les données utilisées et une confirmation explicite.
 
 Les appels d’agent consomment le quota de l’entreprise de manière atomique. Les outils sont validés avec Zod côté serveur et les tokens OAuth restent chiffrés côté Supabase. Les pages d’objectif et de projet permettent de confier une mission directement à un agent : le résultat, la confiance, le modèle et l’éventuelle validation d’outil sont enregistrés sur la ressource concernée.
 
 Chaque automatisation persistante contient désormais un `agentId`, une consigne et un outil optionnel. Une exécution manuelle vérifie que l’agent est actif, que le connecteur requis est autorisé, produit un livrable, puis crée une validation avant toute action Gmail, Calendar ou Drive.
+
+L’activation des agents, les connexions OAuth et les préférences de notifications sont persistées dans Supabase. Le centre de notifications de la barre supérieure agrège les validations, erreurs, exécutions et alertes de quota ; son état lu/non lu est conservé par utilisateur. La navigation mobile utilise un tiroir, des actions tactiles et des vues défilantes pour les paramètres et les tableaux larges.
 
 ## Abonnements Stripe
 

@@ -17,11 +17,17 @@ export async function apiClient<T>(path: string, options: RequestInit & { timeou
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeout ?? 12_000);
   try {
-    const response = await fetch(`${API_URL}${path}`, {
+    const request = () => fetch(`${API_URL}${path}`, {
       ...options,
       signal: options.signal ?? controller.signal,
+      credentials: options.credentials ?? "same-origin",
       headers: { "Content-Type": "application/json", ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}), ...options.headers },
     });
+    let response = await request();
+    if (response.status === 401 && typeof window !== "undefined" && path !== "/api/auth/session") {
+      const refreshResponse = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
+      if (refreshResponse.ok) response = await request();
+    }
     if (!response.ok) {
       const details = await response.json().catch(() => null) as { error?: string } | null;
       throw new ApiError(details?.error ?? "La requête a échoué", response.status, details);

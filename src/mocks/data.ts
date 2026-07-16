@@ -1,11 +1,11 @@
 import type { ActivityEvent, Agent, ApprovalRequest, Automation, Connection, Goal, MemoryItem, Project } from "@/types";
 
 export const agents: Agent[] = [
-  ["coordinateur", "Coordinateur", "Orchestration", "Coordonne les plans, délègue les tâches et consolide les résultats.", "active", 184, 96, "GPT-5.4", 18.4, "À l’instant", ["Planification", "Délégation", "Synthèse"], "indigo", "Sparkles"],
+  ["coordinateur", "Coordinateur", "Orchestration", "Coordonne les plans, délègue les tâches et consolide les résultats.", "active", 184, 96, "GPT-5.4", 18.4, "À l’instant", ["Planification", "Délégation", "Gmail", "Calendar", "Drive"], "indigo", "Sparkles"],
   ["recherche", "Recherche", "Veille & analyse", "Collecte, compare et vérifie les informations utiles aux objectifs.", "active", 96, 93, "Claude Opus 4.6", 12.2, "Il y a 2 min", ["Web", "Bases de données", "PDF"], "cyan", "Search"],
   ["developpement", "Développement", "Code & intégrations", "Construit des interfaces, automatise les processus et teste les livrables.", "active", 74, 91, "GPT-5.4", 24.8, "Il y a 8 min", ["GitHub", "Terminal", "Navigateur"], "violet", "Code2"],
   ["documents", "Documents", "Rédaction", "Produit des documents commerciaux structurés et cohérents avec votre ton.", "active", 132, 95, "Claude Opus 4.6", 8.6, "Il y a 12 min", ["Drive", "Notion", "PDF"], "amber", "Files"],
-  ["email", "Email", "Communication email", "Prépare et envoie des communications après validation.", "paused", 211, 98, "GPT-5.4", 6.4, "Hier, 17:42", ["Gmail", "CRM"], "rose", "Mail"],
+  ["email", "Email", "Communication email", "Analyse la boîte, crée des brouillons, classe et envoie après validation.", "paused", 211, 98, "GPT-5.4", 6.4, "Hier, 17:42", ["Lecture Gmail", "Brouillons", "Classement", "Envoi validé"], "rose", "Mail"],
   ["calendrier", "Calendrier", "Organisation", "Planifie les rendez-vous et protège les plages de concentration.", "active", 88, 97, "GPT-5.4", 4.1, "Il y a 25 min", ["Google Calendar"], "emerald", "CalendarDays"],
   ["navigateur", "Navigateur", "Navigation web", "Interagit avec les interfaces web autorisées et collecte des résultats.", "offline", 43, 86, "Local", 3.7, "Lundi, 10:14", ["Browser"], "blue", "Globe"],
   ["crm", "CRM", "Relation client", "Qualifie les prospects et maintient le pipeline commercial à jour.", "paused", 57, 89, "GPT-5.4", 7.3, "Hier, 15:20", ["HubSpot", "Sheets"], "orange", "Users"],

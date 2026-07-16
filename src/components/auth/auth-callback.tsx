@@ -19,14 +19,15 @@ export function AuthCallback() {
         return;
       }
       const response = await fetch("/api/auth/adopt-session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accessToken, refreshToken, expiresIn: Number(fragment.get("expires_in") ?? 3600) }) });
+      const result = await response.json().catch(() => ({})) as { error?: string; onboardingCompleted?: boolean; landingPage?: string };
       if (!response.ok) {
-        const result = await response.json() as { error?: string };
         setError(result.error ?? "La session n’a pas pu être validée.");
         return;
       }
       window.history.replaceState(null, "", window.location.pathname);
       const destination = searchParams.get("next");
-      window.location.replace(destination?.startsWith("/") ? destination : "/onboarding/subscription");
+      const requestedDestination = destination?.startsWith("/") && !destination.startsWith("//") ? destination : undefined;
+      window.location.replace(result.onboardingCompleted ? (requestedDestination ?? result.landingPage ?? "/") : "/onboarding/subscription");
     };
     void finishAuthentication();
   }, [searchParams]);

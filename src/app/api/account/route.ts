@@ -17,6 +17,7 @@ const profileSchema = z.object({
     density: z.enum(["comfortable", "compact"]),
     reducedMotion: z.boolean(),
     landingPage: z.enum(["/", "/goals", "/projects", "/activity"]),
+    readNotificationIds: z.array(z.string().trim().min(1).max(160)).max(500).default([]),
   }),
 });
 

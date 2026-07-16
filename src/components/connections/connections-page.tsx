@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, FlaskConical, Info, LoaderCircle, PlugZap, Send, Settings2, Unplug } from "lucide-react";
+import { CheckCircle2, FlaskConical, Info, KeyRound, LoaderCircle, PlugZap, RefreshCcw, Send, Settings2, Unplug } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -39,7 +39,7 @@ export function ConnectionsPage() {
     const connected = searchParams.get("connected");
     const error = searchParams.get("error");
     if (connected) {
-      toast.success("Connexion Google autorisée et enregistrée.");
+      toast.success("Google Workspace est autorisé durablement pour Gmail, Calendar et Drive.");
       void hydrateFromDatabase();
     }
     if (error) toast.error(error);
@@ -59,7 +59,7 @@ export function ConnectionsPage() {
     try {
       await connectionRequest("/api/connections/google/disconnect", connection.id);
       await hydrateFromDatabase();
-      toast.success(`${connection.name} a été déconnecté et son jeton révoqué.`);
+      toast.success("Google Workspace a été déconnecté et tous ses jetons ont été révoqués.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Déconnexion impossible");
     } finally {
@@ -112,6 +112,11 @@ export function ConnectionsPage() {
         description="Reliez Astra à vos outils avec de vraies autorisations OAuth, révocables et journalisées."
       />
 
+      <div className="flex flex-col gap-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 sm:flex-row sm:items-center">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500"><KeyRound className="size-5" /></span>
+        <div className="min-w-0 flex-1"><p className="text-sm font-medium">Une seule autorisation Google Workspace</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Le refresh token est chiffré côté serveur et réutilisé par les agents et automatisations. Vous ne vous reconnectez que si Google révoque l’accès ou si vous cliquez sur Réautoriser.</p></div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {connections.map((connection) => {
           const isGoogle = googleConnectionIds.has(connection.id);
@@ -134,7 +139,7 @@ export function ConnectionsPage() {
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Permissions demandées</p>
                   <p className="mt-2 text-xs">{connection.permissions.join(" · ")}</p>
                 </div>
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                   {isConnected ? (
                     <>
                       <Button variant="outline" className="flex-1" onClick={() => setSelected(connection)}>
@@ -168,7 +173,7 @@ export function ConnectionsPage() {
               <CheckCircle2 className="size-5 text-emerald-500" />
               <div>
                 <p className="text-sm font-medium">Autorisation OAuth active</p>
-                <p className="text-xs text-muted-foreground">Le refresh token est chiffré dans l’espace de votre entreprise.</p>
+                <p className="text-xs text-muted-foreground">Le jeton persistant est chiffré dans l’espace de votre entreprise et reste disponible hors connexion.</p>
               </div>
             </div>
             <div className="rounded-xl bg-muted/40 p-4 text-sm">
@@ -212,7 +217,8 @@ export function ConnectionsPage() {
                 </Button>
               </div>
             ) : null}
-            <div className="flex justify-end gap-2 border-t pt-4">
+            <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+              <Button variant="ghost" onClick={() => window.location.assign(`/api/connections/google/start?connectionId=${encodeURIComponent(selected.id)}&force=1`)}><RefreshCcw className="size-4" />Réautoriser</Button>
               <Button variant="outline" disabled={busyId === selected.id} onClick={() => void testConnection(selected)}>
                 {busyId === selected.id ? <LoaderCircle className="size-4 animate-spin" /> : <FlaskConical className="size-4" />}
                 Tester réellement

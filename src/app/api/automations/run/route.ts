@@ -50,6 +50,7 @@ export async function POST(request: Request) {
     const configuration = await getOpenAIConfiguration(user.id);
     const workflow = automation.nodes.map((node, index) => `${index + 1}. [${node.type}] ${node.label}`).join("\n");
     const taskResult = await generateAgentTask({
+      userId: user.id,
       agent: executor,
       instruction: `Exécute la partie intellectuelle de cette automatisation et prépare un livrable concret.\nAutomatisation : ${automation.name}\nDescription : ${automation.description}\nConsigne configurée : ${automation.instruction || automation.actions.join(" ; ") || "Produire le résultat attendu"}\nOutil attendu : ${automation.preferredTool && automation.preferredTool !== "auto" ? automation.preferredTool : "choix automatique uniquement si nécessaire"}\nWorkflow :\n${workflow}`,
       workspace,

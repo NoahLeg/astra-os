@@ -9,8 +9,12 @@ import type { ApprovalRequest } from "@/types";
 
 function toolPreview(approval: ApprovalRequest) {
   if (!approval.toolCall) return null;
-  if (approval.toolCall.tool === "send_email") {
+  if (approval.toolCall.tool === "send_email" || approval.toolCall.tool === "create_email_draft") {
     return `À : ${approval.toolCall.arguments.to}\nObjet : ${approval.toolCall.arguments.subject}\n\n${approval.toolCall.arguments.body}`;
+  }
+  if (approval.toolCall.tool === "organize_email") {
+    const input = approval.toolCall.arguments;
+    return `Action : ${input.action}${input.labelName ? ` — ${input.labelName}` : ""}\nMessages : ${input.messageIds.join(", ")}`;
   }
   if (approval.toolCall.tool === "create_calendar_event") {
     const input = approval.toolCall.arguments;

@@ -98,6 +98,7 @@ export const defaultAccountPreferences: AccountPreferences = {
   density: "comfortable",
   reducedMotion: false,
   landingPage: "/",
+  readNotificationIds: [],
 };
 
 export const defaultWorkspaceSettings: WorkspaceSettings = {

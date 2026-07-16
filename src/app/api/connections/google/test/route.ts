@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getDecryptedIntegrationSecret } from "@/lib/server/admin-service";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { getWorkspaceIdForUser, hasWorkspaceAccess } from "@/lib/server/database";
-import { getGoogleTestEndpoint, googleConnectionIds, refreshGoogleAccessToken } from "@/lib/server/google-oauth";
+import { hasWorkspaceAccess } from "@/lib/server/database";
+import { getGoogleTestEndpoint, googleConnectionIds } from "@/lib/server/google-oauth";
 import { BillingAccessError, requireSubscriptionFeature } from "@/lib/server/billing";
+import { getGoogleAccessToken } from "@/lib/server/google-credentials";
 
 const schema = z.object({ connectionId: z.enum(googleConnectionIds) });
 
@@ -19,13 +19,9 @@ export async function POST(request: Request) {
 
   try {
     await requireSubscriptionFeature(user.id, "connectors");
-    const workspaceId = await getWorkspaceIdForUser(user.id);
-    if (!workspaceId) throw new Error("Espace de travail introuvable");
-    const credential = await getDecryptedIntegrationSecret({ workspaceId, provider: "Google OAuth", label: `oauth:${parsed.data.connectionId}`, actorUserId: user.id });
-    if (!credential) return NextResponse.json({ error: "Ce connecteur Google n’est pas autorisé." }, { status: 409 });
-    const token = await refreshGoogleAccessToken(credential.secret);
+    const accessToken = await getGoogleAccessToken(user.id, parsed.data.connectionId);
     const testResponse = await fetch(getGoogleTestEndpoint(parsed.data.connectionId), {
-      headers: { Authorization: `Bearer ${token.access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });

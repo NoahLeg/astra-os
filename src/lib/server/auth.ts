@@ -144,8 +144,8 @@ export function getAccessToken(request: Request) {
 
 export function applySessionCookies(response: NextResponse, session: AuthSession) {
   const secure = process.env.NODE_ENV === "production";
-  response.cookies.set("astra-access-token", session.access_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: session.expires_in });
-  response.cookies.set("astra-refresh-token", session.refresh_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 30 });
+  response.cookies.set("astra-access-token", session.access_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: session.expires_in, priority: "high" });
+  response.cookies.set("astra-refresh-token", session.refresh_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365, priority: "high" });
 }
 
 export function clearSessionCookies(response: NextResponse) {

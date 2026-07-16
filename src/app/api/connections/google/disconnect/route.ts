@@ -4,7 +4,7 @@ import { deleteWorkspaceSecret, getDecryptedIntegrationSecret } from "@/lib/serv
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { getWorkspaceIdForUser, hasWorkspaceAccess, patchWorkspaceRecord } from "@/lib/server/database";
 import { googleConnectionIds, revokeGoogleToken } from "@/lib/server/google-oauth";
-import { BillingAccessError, requireSubscriptionFeature } from "@/lib/server/billing";
+import { GOOGLE_WORKSPACE_SECRET_LABEL } from "@/lib/server/google-credentials";
 
 const schema = z.object({ connectionId: z.enum(googleConnectionIds) });
 
@@ -18,18 +18,21 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Connecteur Google invalide" }, { status: 400 });
 
   try {
-    await requireSubscriptionFeature(user.id, "connectors");
     const workspaceId = await getWorkspaceIdForUser(user.id);
     if (!workspaceId) throw new Error("Espace de travail introuvable");
-    const credential = await getDecryptedIntegrationSecret({ workspaceId, provider: "Google OAuth", label: `oauth:${parsed.data.connectionId}`, actorUserId: user.id });
-    if (credential) {
-      await revokeGoogleToken(credential.secret);
+    const labels = [GOOGLE_WORKSPACE_SECRET_LABEL, ...googleConnectionIds.map((connectionId) => `oauth:${connectionId}`)];
+    const credentials: Array<{ id: string; secret: string }> = [];
+    for (const label of labels) {
+      const credential = await getDecryptedIntegrationSecret({ workspaceId, provider: "Google OAuth", label, actorUserId: user.id });
+      if (credential && !credentials.some((item) => item.id === credential.id)) credentials.push(credential);
+    }
+    for (const credential of credentials) {
+      await revokeGoogleToken(credential.secret).catch(() => undefined);
       await deleteWorkspaceSecret({ workspaceId, secretId: credential.id, actorUserId: user.id });
     }
-    await patchWorkspaceRecord("connections", parsed.data.connectionId, { status: "disconnected" }, user.id);
+    await Promise.all(googleConnectionIds.map((connectionId) => patchWorkspaceRecord("connections", connectionId, { status: "disconnected" }, user.id)));
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof BillingAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Déconnexion Google impossible" }, { status: 503 });
   }
 }

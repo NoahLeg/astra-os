@@ -40,6 +40,7 @@ export async function POST(request: Request) {
     await consumeApiUsage(user.id, "agents", 1);
     const configuration = await getOpenAIConfiguration(user.id);
     const taskResult = await generateAgentTask({
+      userId: user.id,
       agent,
       instruction: parsed.data.instruction,
       workspace,

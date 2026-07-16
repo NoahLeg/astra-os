@@ -9,6 +9,7 @@ const scopes: Record<GoogleConnectionId, string[]> = {
     "email",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.modify",
   ],
   calendar: [
     "openid",
@@ -23,6 +24,8 @@ const scopes: Record<GoogleConnectionId, string[]> = {
     "https://www.googleapis.com/auth/drive.file",
   ],
 };
+
+export const googleWorkspaceScopes = Array.from(new Set(googleConnectionIds.flatMap((connectionId) => scopes[connectionId])));
 
 function getCredentials() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -39,23 +42,23 @@ export function getGoogleRedirectUri(requestUrl: string) {
   return process.env.GOOGLE_REDIRECT_URI?.trim() || `${new URL(requestUrl).origin}/api/connections/google/callback`;
 }
 
-export function createGoogleAuthorizationUrl(input: { connectionId: GoogleConnectionId; state: string; requestUrl: string }) {
+export function createGoogleAuthorizationUrl(input: { state: string; requestUrl: string; forceConsent: boolean }) {
   const { clientId } = getCredentials();
   const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authorizationUrl.search = new URLSearchParams({
     client_id: clientId,
     redirect_uri: getGoogleRedirectUri(input.requestUrl),
     response_type: "code",
-    scope: scopes[input.connectionId].join(" "),
+    scope: googleWorkspaceScopes.join(" "),
     access_type: "offline",
     include_granted_scopes: "true",
-    prompt: "consent",
     state: input.state,
   }).toString();
+  if (input.forceConsent) authorizationUrl.searchParams.set("prompt", "consent");
   return authorizationUrl;
 }
 
-interface GoogleTokenResponse {
+export interface GoogleTokenResponse {
   access_token: string;
   expires_in: number;
   refresh_token?: string;

@@ -7,6 +7,7 @@ import type { AccessLevel, AccountPreferences, Agent, ApprovalRequest, Automatio
 interface AppState extends WorkspaceData {
   account?: { id: string; email: string; fullName?: string; isAdmin?: boolean; accessLevel?: AccessLevel; workspaceName?: string; subscription?: WorkspaceSubscription; preferences?: AccountPreferences };
   sidebarCollapsed: boolean;
+  mobileSidebarOpen: boolean;
   assistantOpen: boolean;
   commandOpen: boolean;
   dataStatus: "loading" | "ready" | "error";
@@ -14,6 +15,7 @@ interface AppState extends WorkspaceData {
   hydrateFromDatabase: () => Promise<void>;
   setAccount: (account: AppState["account"]) => void;
   toggleSidebar: () => void;
+  setMobileSidebarOpen: (open: boolean) => void;
   setAssistantOpen: (open: boolean) => void;
   setCommandOpen: (open: boolean) => void;
   toggleAgent: (id: string) => Promise<void>;
@@ -40,6 +42,7 @@ function getErrorMessage(error: unknown) {
 
 export const useAppStore = create<AppState>((set, get) => ({
   sidebarCollapsed: false,
+  mobileSidebarOpen: false,
   assistantOpen: false,
   commandOpen: false,
   dataStatus: "loading",
@@ -63,6 +66,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   setAccount: (account) => set({ account }),
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+  setMobileSidebarOpen: (mobileSidebarOpen) => set({ mobileSidebarOpen }),
   setAssistantOpen: (assistantOpen) => set({ assistantOpen }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),
   toggleAgent: async (id) => {

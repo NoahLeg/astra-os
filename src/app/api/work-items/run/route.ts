@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     const configuration = await getOpenAIConfiguration(user.id);
     const entityLabel = parsed.data.entityType === "goal" ? "Objectif" : "Projet";
     const taskResult = await generateAgentTask({
+      userId: user.id,
       agent,
       instruction: `${entityLabel} : ${entity.title}\nContexte : ${entity.description}\n\nMission confiée : ${parsed.data.instruction}`,
       workspace,

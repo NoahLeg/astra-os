@@ -1,4 +1,4 @@
-import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
+import type { AccountProfile, ActivityEvent, AgentExecution, AppNotification, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
 import { apiClient, simulate } from "./api-client";
 
 type Collection = keyof WorkspaceData;
@@ -101,6 +101,18 @@ export const activityService = {
     const interval = setInterval(() => { void refresh().catch(() => undefined); }, 8_000);
     return () => clearInterval(interval);
   },
+};
+
+export const notificationService = {
+  list: async () => (await apiClient<{ notifications: AppNotification[]; unreadCount: number }>("/api/notifications", { cache: "no-store" })).data,
+  markRead: async (id: string) => (await apiClient<{ success: true }>("/api/notifications", {
+    method: "POST",
+    body: JSON.stringify({ action: "mark_read", id }),
+  })).data,
+  markAllRead: async () => (await apiClient<{ success: true }>("/api/notifications", {
+    method: "POST",
+    body: JSON.stringify({ action: "mark_all_read" }),
+  })).data,
 };
 
 export const assistantService = {

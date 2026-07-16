@@ -6,7 +6,7 @@ export type AccessLevel = "viewer" | "operator" | "admin";
 export type AccountStatus = "active" | "suspended";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid";
 export type FeatureKey = "assistant" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin";
-export type AgentToolName = "send_email" | "create_calendar_event" | "create_drive_file";
+export type AgentToolName = "send_email" | "create_email_draft" | "organize_email" | "create_calendar_event" | "create_drive_file";
 export type AccentColor = "indigo" | "cyan" | "violet" | "emerald" | "rose";
 export type InterfaceDensity = "comfortable" | "compact";
 
@@ -39,6 +39,7 @@ export interface AccountPreferences {
   density: InterfaceDensity;
   reducedMotion: boolean;
   landingPage: "/" | "/goals" | "/projects" | "/activity";
+  readNotificationIds: string[];
 }
 
 export interface SubscriptionPlan {
@@ -182,6 +183,20 @@ export interface SendEmailToolCall {
   arguments: { to: string; subject: string; body: string };
 }
 
+export interface CreateEmailDraftToolCall {
+  tool: "create_email_draft";
+  arguments: { to: string; subject: string; body: string };
+}
+
+export interface OrganizeEmailToolCall {
+  tool: "organize_email";
+  arguments: {
+    messageIds: string[];
+    action: "archive" | "mark_read" | "mark_unread" | "star" | "unstar" | "label";
+    labelName?: string;
+  };
+}
+
 export interface CreateCalendarEventToolCall {
   tool: "create_calendar_event";
   arguments: { title: string; description?: string; startAt: string; endAt: string; attendees: string[]; timeZone: string };
@@ -192,7 +207,17 @@ export interface CreateDriveFileToolCall {
   arguments: { name: string; content: string; mimeType: "text/plain" | "text/markdown" };
 }
 
-export type AgentToolCall = SendEmailToolCall | CreateCalendarEventToolCall | CreateDriveFileToolCall;
+export type AgentToolCall = SendEmailToolCall | CreateEmailDraftToolCall | OrganizeEmailToolCall | CreateCalendarEventToolCall | CreateDriveFileToolCall;
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  description: string;
+  category: "approval" | "error" | "success" | "quota";
+  createdAt: string;
+  href: string;
+  read: boolean;
+}
 
 export interface GoalAnalysis {
   summary: string;

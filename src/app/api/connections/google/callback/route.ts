@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { saveWorkspaceSecret } from "@/lib/server/admin-service";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { getWorkspaceIdForUser, hasWorkspaceAccess, patchWorkspaceRecord } from "@/lib/server/database";
-import { exchangeGoogleAuthorizationCode, isGoogleConnectionId } from "@/lib/server/google-oauth";
+import { exchangeGoogleAuthorizationCode, googleConnectionIds, isGoogleConnectionId } from "@/lib/server/google-oauth";
 import { requireSubscriptionFeature } from "@/lib/server/billing";
+import { getStoredGoogleCredential, saveGoogleWorkspaceCredential } from "@/lib/server/google-credentials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,19 +35,18 @@ export async function GET(request: NextRequest) {
     await requireSubscriptionFeature(user.id, "connectors");
     const workspaceId = await getWorkspaceIdForUser(user.id);
     if (!workspaceId) throw new Error("Aucun espace de travail associé à ce compte.");
+    const existingCredential = await getStoredGoogleCredential({ workspaceId, actorUserId: user.id, connectionId });
     const token = await exchangeGoogleAuthorizationCode({ code, requestUrl: request.url });
-    if (!token.refresh_token) throw new Error("Google n’a pas fourni de refresh token. Révoquez l’accès Astra dans votre compte Google puis reconnectez-vous.");
+    const refreshToken = token.refresh_token ?? existingCredential?.refreshToken;
+    if (!refreshToken) throw new Error("Google n’a pas fourni de jeton persistant. Révoquez l’accès Astra dans votre compte Google puis reconnectez-vous.");
 
-    await saveWorkspaceSecret({
+    await saveGoogleWorkspaceCredential({
       workspaceId,
-      provider: "Google OAuth",
-      label: `oauth:${connectionId}`,
-      baseUrl: "https://oauth2.googleapis.com/token",
-      secret: token.refresh_token,
       actorUserId: user.id,
+      refreshToken,
     });
-    await patchWorkspaceRecord("connections", connectionId, { status: "connected" }, user.id);
-    return redirectToConnections(request, { connected: connectionId });
+    await Promise.all(googleConnectionIds.map((id) => patchWorkspaceRecord("connections", id, { status: "connected" }, user.id)));
+    return redirectToConnections(request, { connected: "google-workspace" });
   } catch (error) {
     return redirectToConnections(request, { error: error instanceof Error ? error.message : "Connexion Google impossible." });
   }

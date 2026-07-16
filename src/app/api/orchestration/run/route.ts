@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       const agent = agents.find((item) => item.id === step.agentId)!;
       const startedAt = Date.now();
       try {
-        const taskResult = await generateAgentTask({ agent, instruction: step.instruction, workspace, memoryContext, configuration });
+        const taskResult = await generateAgentTask({ userId: user.id, agent, instruction: step.instruction, workspace, memoryContext, configuration });
         const approval = createToolApproval({
           agent,
           instruction: step.instruction,
