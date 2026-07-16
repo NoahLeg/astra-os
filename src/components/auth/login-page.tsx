@@ -37,7 +37,7 @@ export function LoginPage() {
     }
     try {
       const response = await fetch(`/api/auth/${mode === "login" ? "login" : "signup"}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
-      const result = await response.json().catch(() => ({})) as { error?: string; confirmationRequired?: boolean; onboardingCompleted?: boolean };
+      const result = await response.json().catch(() => ({})) as { error?: string; confirmationRequired?: boolean; onboardingCompleted?: boolean; landingPage?: string };
       if (!response.ok) {
         setServerError(result.error ?? "Le service d’authentification est indisponible. Redémarrez le serveur, puis réessayez.");
         return;
@@ -48,7 +48,7 @@ export function LoginPage() {
         return;
       }
       const destination = searchParams.get("next");
-      window.location.replace(result.onboardingCompleted ? (destination?.startsWith("/") ? destination : "/") : "/onboarding/subscription");
+      window.location.replace(result.onboardingCompleted ? (destination?.startsWith("/") ? destination : result.landingPage?.startsWith("/") ? result.landingPage : "/") : "/onboarding/subscription");
     } catch {
       setServerError("Impossible de joindre le serveur local. Vérifiez que npm run dev est toujours actif.");
     }

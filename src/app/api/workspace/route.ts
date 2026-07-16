@@ -30,6 +30,13 @@ export async function GET(request: Request) {
   try {
     const [data, context, subscription] = await Promise.all([getWorkspaceData(user.id), getUserWorkspaceContext(user.id), getWorkspaceSubscription(user.id)]);
     if (!context || context.status !== "active") return NextResponse.json({ error: "Accès suspendu" }, { status: 403 });
+    const enabledAgents = data.agents.filter((agent) => agent.enabled);
+    if (enabledAgents.length > subscription.maxAgents) {
+      const allowedIds = new Set(enabledAgents.slice(0, subscription.maxAgents).map((agent) => agent.id));
+      const disabledIds = enabledAgents.filter((agent) => !allowedIds.has(agent.id)).map((agent) => agent.id);
+      data.agents = data.agents.map((agent) => disabledIds.includes(agent.id) ? { ...agent, enabled: false, status: "paused" } : agent);
+      await Promise.all(disabledIds.map((id) => patchWorkspaceRecord("agents", id, { enabled: false, status: "paused" }, user.id)));
+    }
     if (context.accessLevel === "viewer") {
       return NextResponse.json({ ...data, agents: [], memories: [], automations: [], approvals: [], connections: [], missions: [] });
     }
@@ -64,7 +71,15 @@ export async function POST(request: Request) {
     if (context.accessLevel !== "admin" && !operatorCanMutate(parsed.data)) return NextResponse.json({ error: "Cette modification nécessite un accès administrateur" }, { status: 403 });
     const featureByCollection = { goals: "goals", projects: "goals", agents: "agents", memories: "memory", automations: "automations", approvals: "agents", connections: "connectors", missions: "multi_agent" } as const;
     const requiredFeature = featureByCollection[parsed.data.collection as keyof typeof featureByCollection];
-    if (requiredFeature) await requireSubscriptionFeature(user.id, requiredFeature);
+    const subscription = requiredFeature ? await requireSubscriptionFeature(user.id, requiredFeature) : await getWorkspaceSubscription(user.id);
+    if (parsed.data.collection === "agents" && parsed.data.operation === "patch" && parsed.data.changes.enabled === true) {
+      const agentId = parsed.data.id;
+      const workspace = await getWorkspaceData(user.id);
+      const current = workspace.agents.find((agent) => agent.id === agentId);
+      const enabledCount = workspace.agents.filter((agent) => agent.enabled && agent.id !== agentId).length;
+      if (!current) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
+      if (!current.enabled && enabledCount >= subscription.maxAgents) return NextResponse.json({ error: `Votre offre autorise ${subscription.maxAgents} agent${subscription.maxAgents > 1 ? "s" : ""} actif${subscription.maxAgents > 1 ? "s" : ""}.` }, { status: 409 });
+    }
     if (parsed.data.operation === "create") {
       await saveWorkspaceRecord(parsed.data.collection, parsed.data.record as unknown as WorkspaceData[typeof parsed.data.collection][number], user.id);
       return NextResponse.json(parsed.data.record, { status: 201 });

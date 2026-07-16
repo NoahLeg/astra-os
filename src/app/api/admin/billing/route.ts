@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const schema = z.discriminatedUnion("action", [
-  z.object({ workspaceId: z.uuid(), action: z.literal("change_plan"), planId: z.enum(["starter", "pro", "business"]) }),
+  z.object({ workspaceId: z.uuid(), action: z.literal("change_plan"), planId: z.enum(["free", "starter", "pro", "business"]) }),
   z.object({ workspaceId: z.uuid(), action: z.literal("reactivate") }),
   z.object({ workspaceId: z.uuid(), action: z.literal("reset_usage") }),
 ]);
@@ -68,11 +68,11 @@ export async function POST(request: Request) {
     const targetPlan = parsed.data.planId;
     if (identifiers.stripe_subscription_id) {
       const stripe = getStripeClient();
-      if (targetPlan === "starter") {
+      if (targetPlan === "free") {
         const updated = await stripe.subscriptions.update(identifiers.stripe_subscription_id, { cancel_at_period_end: true });
         await saveStripeSubscription(parsed.data.workspaceId, subscription.planId, updated);
-        await writeAdminAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: admin.id, action: "subscription.downgrade_scheduled", targetType: "workspace_subscription", targetId: parsed.data.workspaceId, metadata: { from: subscription.planId, to: "starter" } });
-        return NextResponse.json({ message: "Passage à Starter programmé à la fin de la période payée." });
+        await writeAdminAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: admin.id, action: "subscription.downgrade_scheduled", targetType: "workspace_subscription", targetId: parsed.data.workspaceId, metadata: { from: subscription.planId, to: "free" } });
+        return NextResponse.json({ message: "Passage à Free programmé à la fin de la période payée." });
       }
       const priceId = getStripePriceId(targetPlan);
       if (!priceId) return NextResponse.json({ error: `Le prix Stripe ${targetPlan.toUpperCase()} n’est pas configuré.` }, { status: 503 });

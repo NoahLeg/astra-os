@@ -1,4 +1,4 @@
-import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkspaceData, WorkspaceSettings } from "@/types";
+import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
 import { apiClient, simulate } from "./api-client";
 
 type Collection = keyof WorkspaceData;
@@ -29,13 +29,28 @@ export const goalService = {
   list: async () => (await workspaceService.load()).goals,
   get: async (id: string) => (await workspaceService.load()).goals.find((goal) => goal.id === id),
   create: (goal: Goal) => workspaceService.create("goals", goal),
+  update: (id: string, changes: Partial<Goal>) => workspaceService.patch("goals", id, changes),
+  delete: (id: string) => workspaceService.delete("goals", id),
   analyze: async (objective: string) => (await apiClient<GoalAnalysis>("/api/goals/analyze", {
     method: "POST",
     body: JSON.stringify({ objective }),
     timeout: 65_000,
   })).data,
 };
-export const projectService = { list: async () => (await workspaceService.load()).projects, get: async (id: string) => (await workspaceService.load()).projects.find((project) => project.id === id) } satisfies { list: () => Promise<Project[]>; get: (id: string) => Promise<Project | undefined> };
+export const projectService = {
+  list: async () => (await workspaceService.load()).projects,
+  get: async (id: string) => (await workspaceService.load()).projects.find((project) => project.id === id),
+  create: (project: Project) => workspaceService.create("projects", project),
+  update: (id: string, changes: Partial<Project>) => workspaceService.patch("projects", id, changes),
+  delete: (id: string) => workspaceService.delete("projects", id),
+};
+export const workItemService = {
+  run: async (entityType: "goal" | "project", entityId: string, agentId: string, instruction: string) => (await apiClient<WorkItemExecution>("/api/work-items/run", {
+    method: "POST",
+    body: JSON.stringify({ entityType, entityId, agentId, instruction }),
+    timeout: 65_000,
+  })).data,
+};
 export const agentService = {
   list: async () => (await workspaceService.load()).agents,
   get: async (id: string) => (await workspaceService.load()).agents.find((agent) => agent.id === id),
@@ -68,11 +83,22 @@ export const connectionService = { list: async () => (await workspaceService.loa
 export const activityService = {
   list: async () => (await workspaceService.load()).activities,
   subscribe: (onEvent: (event: ActivityEvent) => void) => {
-    let events: ActivityEvent[] = [];
-    void workspaceService.load().then((data) => { events = data.activities; });
-    const interval = setInterval(() => {
-      if (events.length) onEvent(events[Math.floor(Math.random() * events.length)]);
-    }, 8_000);
+    const seen = new Set<string>();
+    let initialized = false;
+    const refresh = async () => {
+      const events = (await workspaceService.load()).activities;
+      if (!initialized) {
+        events.forEach((event) => seen.add(event.id));
+        initialized = true;
+        return;
+      }
+      events.filter((event) => !seen.has(event.id)).forEach((event) => {
+        seen.add(event.id);
+        onEvent(event);
+      });
+    };
+    void refresh().catch(() => undefined);
+    const interval = setInterval(() => { void refresh().catch(() => undefined); }, 8_000);
     return () => clearInterval(interval);
   },
 };
@@ -114,7 +140,7 @@ export const settingsService = {
 
 export const accountService = {
   load: async () => (await apiClient<AccountProfile>("/api/account", { cache: "no-store" })).data,
-  update: async (profile: Pick<AccountProfile, "fullName" | "jobTitle" | "phone" | "timezone">) => (await apiClient<AccountProfile>("/api/account", {
+  update: async (profile: Pick<AccountProfile, "fullName" | "jobTitle" | "phone" | "timezone" | "preferences">) => (await apiClient<AccountProfile>("/api/account", {
     method: "PATCH",
     body: JSON.stringify(profile),
   })).data,

@@ -11,6 +11,13 @@ const profileSchema = z.object({
   jobTitle: z.string().trim().max(100),
   phone: z.string().trim().max(30),
   timezone: z.string().trim().min(2).max(80),
+  preferences: z.object({
+    theme: z.enum(["dark", "light", "system"]),
+    accentColor: z.enum(["indigo", "cyan", "violet", "emerald", "rose"]),
+    density: z.enum(["comfortable", "compact"]),
+    reducedMotion: z.boolean(),
+    landingPage: z.enum(["/", "/goals", "/projects", "/activity"]),
+  }),
 });
 
 export async function GET(request: Request) {

@@ -202,6 +202,7 @@ vercel env add SUPABASE_SECRET_KEY production
 vercel env add OPENAI_API_KEY production
 vercel env add STRIPE_SECRET_KEY production
 vercel env add STRIPE_WEBHOOK_SECRET production
+vercel env add STRIPE_PRICE_STARTER production
 vercel env add STRIPE_PRICE_PRO production
 vercel env add STRIPE_PRICE_BUSINESS production
 vercel --prod
@@ -282,26 +283,31 @@ La page `/orchestration` rassemble de 2 à 5 agents pour une mission complexe. L
 
 Les agents Email, Calendrier et Documents peuvent proposer respectivement l’envoi d’un e-mail Gmail, la création d’un événement Google Calendar ou d’un document Google Drive. Aucune action externe n’est exécutée pendant la réflexion : une demande détaillée apparaît d’abord dans `/approvals`, avec les données utilisées et une confirmation explicite.
 
-Les appels d’agent consomment le quota de l’entreprise de manière atomique. Les outils sont validés avec Zod côté serveur et les tokens OAuth restent chiffrés côté Supabase.
+Les appels d’agent consomment le quota de l’entreprise de manière atomique. Les outils sont validés avec Zod côté serveur et les tokens OAuth restent chiffrés côté Supabase. Les pages d’objectif et de projet permettent de confier une mission directement à un agent : le résultat, la confiance, le modèle et l’éventuelle validation d’outil sont enregistrés sur la ressource concernée.
+
+Chaque automatisation persistante contient désormais un `agentId`, une consigne et un outil optionnel. Une exécution manuelle vérifie que l’agent est actif, que le connecteur requis est autorisé, produit un livrable, puis crée une validation avant toute action Gmail, Calendar ou Drive.
 
 ## Abonnements Stripe
 
 La page `/billing` applique les limites de chaque offre :
 
-- **Starter** — objectifs, assistant et mémoire, 100 appels API/mois ;
-- **Pro** — connecteurs, automatisations et jusqu’à 5 agents, 2 000 appels API/mois ;
-- **Business** — orchestration multi-agents, administration et jusqu’à 10 agents, 10 000 appels API/mois.
+- **Free** — assistant, objectifs et mémoire, 50 appels/mois, 10/jour et 3/minute ;
+- **Starter (19 €/mois)** — connecteurs, automatisations, 2 agents, 500 appels/mois, 50/jour et 10/minute ;
+- **Pro (49 €/mois)** — jusqu’à 5 agents, 2 000 appels/mois, 150/jour et 30/minute ;
+- **Business (149 €/mois)** — orchestration multi-agents, administration, 10 agents, 8 000 appels/mois, 500/jour et 60/minute.
 
-1. dans Stripe, créez deux produits récurrents mensuels : Pro et Business ;
-2. copiez leurs identifiants de prix (`price_...`) dans `STRIPE_PRICE_PRO` et `STRIPE_PRICE_BUSINESS` ;
+1. dans Stripe, créez trois produits récurrents mensuels : Starter, Pro et Business ;
+2. copiez leurs identifiants de prix (`price_...`) dans `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO` et `STRIPE_PRICE_BUSINESS` ;
 3. ajoutez `STRIPE_SECRET_KEY` dans Vercel, sans préfixe `NEXT_PUBLIC_` ;
 4. dans Stripe Developers → Webhooks, ajoutez `https://votre-domaine.vercel.app/api/billing/webhook` ;
 5. sélectionnez au minimum `checkout.session.completed`, `customer.subscription.updated` et `customer.subscription.deleted` ;
 6. copiez le secret de signature (`whsec_...`) dans `STRIPE_WEBHOOK_SECRET` puis redéployez.
 
-Le webhook est exempté du contrôle de session, mais sa signature Stripe est vérifiée avant toute mise à jour de l’abonnement. Sans les variables Stripe, l’offre Starter reste disponible et les boutons de paiement sont désactivés.
+Le webhook est exempté du contrôle de session, mais sa signature Stripe est vérifiée avant toute mise à jour de l’abonnement. Sans les variables Stripe, l’offre Free reste disponible et seuls les boutons des prix Stripe manquants sont désactivés.
 
-Après la première connexion, les nouveaux administrateurs passent par `/onboarding/subscription` et choisissent explicitement Starter ou une offre payante. Les comptes existants ne sont pas redirigés à nouveau. La page `/account` présente ensuite le plan, la prochaine échéance, le quota mensuel et les factures Stripe. La console `/admin` permet au Super Admin de changer une offre, programmer un retour à Starter, annuler une résiliation et réinitialiser le quota API ; chaque action est journalisée.
+Après la première connexion, les nouveaux administrateurs passent par `/onboarding/subscription` et choisissent explicitement Free ou une offre payante. Les comptes existants ne sont pas redirigés à nouveau. La page `/account` présente ensuite le plan, la prochaine échéance, les quotas et les factures Stripe. La console `/admin` permet au Super Admin de changer une offre, programmer un retour à Free, annuler une résiliation et réinitialiser le quota API ; chaque action est journalisée.
+
+Les limites mensuelles, quotidiennes et par minute sont contrôlées dans une fonction PostgreSQL atomique. Elles ne dépendent donc pas d’un compteur manipulable dans le navigateur. Le nombre d’agents actifs est également contrôlé côté serveur selon l’offre.
 
 ## WebSocket ou SSE
 

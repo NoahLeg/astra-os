@@ -3,7 +3,7 @@ import "server-only";
 import { subscriptionPlans } from "@/config";
 import { getWorkspaceIdForUser, isSupabaseDatabaseEnabled, serverDatabaseRequest } from "@/lib/server/database";
 import { getStripeClient } from "@/lib/server/stripe";
-import type { BillingInvoice, FeatureKey, SubscriptionPlan, SubscriptionStatus, WorkspaceSubscription } from "@/types";
+import type { Agent, BillingInvoice, FeatureKey, SubscriptionPlan, SubscriptionStatus, WorkspaceSubscription } from "@/types";
 
 interface SubscriptionRow {
   workspace_id: string;
@@ -16,6 +16,8 @@ interface SubscriptionRow {
   onboarding_completed_at?: string;
   api_usage: number;
   api_usage_reset_at: string;
+  api_usage_daily: number;
+  api_usage_day: string;
 }
 
 type WorkspaceBillingIdentifiers = Pick<
@@ -34,8 +36,13 @@ function planById(planId: string | undefined) {
   return subscriptionPlans.find((plan) => plan.id === planId) ?? subscriptionPlans[0];
 }
 
-function stripeConfiguredForPaidPlans() {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET && process.env.STRIPE_PRICE_PRO && process.env.STRIPE_PRICE_BUSINESS);
+function stripeConfiguredPlans(): SubscriptionPlan["id"][] {
+  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) return [];
+  return [
+    ...(process.env.STRIPE_PRICE_STARTER ? ["starter" as const] : []),
+    ...(process.env.STRIPE_PRICE_PRO ? ["pro" as const] : []),
+    ...(process.env.STRIPE_PRICE_BUSINESS ? ["business" as const] : []),
+  ];
 }
 
 function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan): WorkspaceSubscription {
@@ -46,13 +53,18 @@ function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan): 
     status: row.status,
     apiUsage: row.api_usage,
     apiLimit: plan.apiLimit,
+    dailyApiUsage: row.api_usage_day === new Date().toISOString().slice(0, 10) ? row.api_usage_daily : 0,
+    dailyApiLimit: plan.dailyApiLimit,
+    minuteApiLimit: plan.minuteApiLimit,
+    maxAgents: plan.maxAgents,
     usageResetAt: row.api_usage_reset_at,
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
     onboardingCompleted: Boolean(row.onboarding_completed_at),
     managedByStripe: Boolean(row.stripe_customer_id && row.stripe_subscription_id),
     features: plan.features,
-    stripeConfigured: stripeConfiguredForPaidPlans(),
+    stripeConfigured: stripeConfiguredPlans().length > 0,
+    stripeConfiguredPlans: stripeConfiguredPlans(),
   };
 }
 
@@ -65,12 +77,17 @@ function localSubscription(): WorkspaceSubscription {
     status: "active",
     apiUsage: 0,
     apiLimit: plan.apiLimit,
+    dailyApiUsage: 0,
+    dailyApiLimit: plan.dailyApiLimit,
+    minuteApiLimit: plan.minuteApiLimit,
+    maxAgents: plan.maxAgents,
     usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(),
     cancelAtPeriodEnd: false,
     onboardingCompleted: true,
     managedByStripe: false,
     features: plan.features,
-    stripeConfigured: stripeConfiguredForPaidPlans(),
+    stripeConfigured: stripeConfiguredPlans().length > 0,
+    stripeConfiguredPlans: stripeConfiguredPlans(),
   };
 }
 
@@ -81,16 +98,16 @@ export function getSubscriptionPlans() {
 export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string): Promise<WorkspaceSubscription> {
   if (!isSupabaseDatabaseEnabled() || workspaceId === "local") return localSubscription();
   let rows = await serverDatabaseRequest<SubscriptionRow[]>(
-    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at&limit=1`,
+    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day&limit=1`,
   );
   if (!rows[0]) {
     await serverDatabaseRequest("workspace_subscriptions?on_conflict=workspace_id", {
       method: "POST",
       headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
-      body: JSON.stringify({ workspace_id: workspaceId, plan_id: "starter", status: "active" }),
+      body: JSON.stringify({ workspace_id: workspaceId, plan_id: "free", status: "active" }),
     });
     rows = await serverDatabaseRequest<SubscriptionRow[]>(
-      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at&limit=1`,
+      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day&limit=1`,
     );
   }
   const row = rows[0];
@@ -135,7 +152,7 @@ export async function resetWorkspaceApiUsage(workspaceId: string) {
   await serverDatabaseRequest(`workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ api_usage: 0, api_usage_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(), updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ api_usage: 0, api_usage_reset_at: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(), api_usage_daily: 0, api_usage_day: new Date().toISOString().slice(0, 10), api_usage_minute: 0, api_usage_minute_started_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
   });
 }
 
@@ -150,6 +167,13 @@ export async function requireSubscriptionFeature(userId: string, feature: Featur
   return subscription;
 }
 
+export function enforceAgentQuota(subscription: WorkspaceSubscription, agents: Agent[]) {
+  const enabledCount = agents.filter((agent) => agent.enabled).length;
+  if (enabledCount > subscription.maxAgents) {
+    throw new BillingAccessError(`Votre offre autorise ${subscription.maxAgents} agent${subscription.maxAgents > 1 ? "s" : ""} actif${subscription.maxAgents > 1 ? "s" : ""}. Désactivez les agents excédentaires.`, 409);
+  }
+}
+
 export async function consumeApiUsage(userId: string, feature: FeatureKey, units = 1) {
   const subscription = await requireSubscriptionFeature(userId, feature);
   if (!isSupabaseDatabaseEnabled()) return subscription;
@@ -161,6 +185,8 @@ export async function consumeApiUsage(userId: string, feature: FeatureKey, units
   } catch (error) {
     const message = error instanceof Error ? error.message : "Quota API indisponible";
     if (message.includes("API_QUOTA_EXCEEDED")) throw new BillingAccessError("Votre limite mensuelle d'utilisation de l'API est atteinte.", 429);
+    if (message.includes("API_DAILY_QUOTA_EXCEEDED")) throw new BillingAccessError("Votre limite quotidienne d’utilisation de l’API est atteinte. Elle sera réinitialisée demain.", 429);
+    if (message.includes("API_RATE_LIMIT_EXCEEDED")) throw new BillingAccessError("Trop d’appels ont été lancés en une minute. Patientez quelques instants.", 429);
     if (message.includes("SUBSCRIPTION_INACTIVE")) throw new BillingAccessError("L'abonnement de cette entreprise n'est pas actif.", 402);
     throw error;
   }
@@ -168,12 +194,14 @@ export async function consumeApiUsage(userId: string, feature: FeatureKey, units
 }
 
 export function getStripePriceId(planId: SubscriptionPlan["id"]) {
+  if (planId === "starter") return process.env.STRIPE_PRICE_STARTER;
   if (planId === "pro") return process.env.STRIPE_PRICE_PRO;
   if (planId === "business") return process.env.STRIPE_PRICE_BUSINESS;
   return undefined;
 }
 
 export function getPlanIdFromStripePrice(priceId: string | undefined) {
+  if (priceId && priceId === process.env.STRIPE_PRICE_STARTER) return "starter" as const;
   if (priceId && priceId === process.env.STRIPE_PRICE_PRO) return "pro" as const;
   if (priceId && priceId === process.env.STRIPE_PRICE_BUSINESS) return "business" as const;
   return undefined;

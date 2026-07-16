@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       if (!workspaceId) throw new Error("Workspace Stripe introuvable après résiliation.");
       await updateWorkspaceSubscriptionFromStripe({
         workspaceId,
-        planId: "starter",
+        planId: "free",
         status: "active",
         customerId: stripeId(deletedSubscription.customer),
         onboardingCompleted: true,

@@ -7,6 +7,8 @@ export type AccountStatus = "active" | "suspended";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid";
 export type FeatureKey = "assistant" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin";
 export type AgentToolName = "send_email" | "create_calendar_event" | "create_drive_file";
+export type AccentColor = "indigo" | "cyan" | "violet" | "emerald" | "rose";
+export type InterfaceDensity = "comfortable" | "compact";
 
 export interface User {
   id: string;
@@ -28,14 +30,25 @@ export interface AccountProfile {
   status: AccountStatus;
   workspaceId: string;
   workspaceName: string;
+  preferences: AccountPreferences;
+}
+
+export interface AccountPreferences {
+  theme: "dark" | "light" | "system";
+  accentColor: AccentColor;
+  density: InterfaceDensity;
+  reducedMotion: boolean;
+  landingPage: "/" | "/goals" | "/projects" | "/activity";
 }
 
 export interface SubscriptionPlan {
-  id: "starter" | "pro" | "business";
+  id: "free" | "starter" | "pro" | "business";
   name: string;
   description: string;
   monthlyPriceCents: number;
   apiLimit: number;
+  dailyApiLimit: number;
+  minuteApiLimit: number;
   maxAgents: number;
   features: FeatureKey[];
   highlighted?: boolean;
@@ -48,6 +61,10 @@ export interface WorkspaceSubscription {
   status: SubscriptionStatus;
   apiUsage: number;
   apiLimit: number;
+  dailyApiUsage: number;
+  dailyApiLimit: number;
+  minuteApiLimit: number;
+  maxAgents: number;
   usageResetAt: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;
@@ -55,6 +72,7 @@ export interface WorkspaceSubscription {
   managedByStripe: boolean;
   features: FeatureKey[];
   stripeConfigured: boolean;
+  stripeConfiguredPlans: SubscriptionPlan["id"][];
 }
 
 export interface BillingInvoice {
@@ -140,6 +158,25 @@ export interface AgentExecution {
   approval?: ApprovalRequest;
 }
 
+export interface WorkItemAgentRun {
+  id: string;
+  agentId: string;
+  agentName: string;
+  instruction: string;
+  result: string;
+  confidence: number;
+  model: string;
+  status: "completed" | "approval";
+  createdAt: string;
+  approvalId?: string;
+}
+
+export interface WorkItemExecution extends AgentExecution {
+  entityType: "goal" | "project";
+  entityId: string;
+  run: WorkItemAgentRun;
+}
+
 export interface SendEmailToolCall {
   tool: "send_email";
   arguments: { to: string; subject: string; body: string };
@@ -215,6 +252,7 @@ export interface Goal {
   agentIds: string[];
   steps: GoalStep[];
   decisions: Decision[];
+  agentRuns?: WorkItemAgentRun[];
 }
 
 export interface Project {
@@ -230,6 +268,7 @@ export interface Project {
   documentCount: number;
   nextAction: string;
   members: string[];
+  agentRuns?: WorkItemAgentRun[];
 }
 
 export interface MemoryItem {
@@ -265,6 +304,12 @@ export interface Automation {
   successRate: number;
   runCount?: number;
   nodes: AutomationNode[];
+  agentId?: string;
+  instruction?: string;
+  preferredTool?: AgentToolName | "auto";
+  lastResult?: string;
+  lastConfidence?: number;
+  lastStatus?: "completed" | "approval" | "error";
 }
 
 export interface Connection {

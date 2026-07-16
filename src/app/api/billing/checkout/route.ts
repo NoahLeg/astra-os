@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
-  planId: z.enum(["starter", "pro", "business"]),
+  planId: z.enum(["free", "starter", "pro", "business"]),
   returnTo: z.enum(["billing", "onboarding"]).default("billing"),
 });
 
@@ -32,8 +32,8 @@ export async function POST(request: Request) {
       const portal = await stripe.billingPortal.sessions.create({ customer: identifiers.stripe_customer_id, return_url: returnUrl });
       return NextResponse.json({ url: portal.url });
     }
-    if (parsed.data.planId === "starter") {
-      await updateWorkspaceSubscriptionFromStripe({ workspaceId: subscription.workspaceId, planId: "starter", status: "active", onboardingCompleted: true });
+    if (parsed.data.planId === "free") {
+      await updateWorkspaceSubscriptionFromStripe({ workspaceId: subscription.workspaceId, planId: "free", status: "active", onboardingCompleted: true });
       return NextResponse.json({ url: `${returnUrl}?checkout=success` });
     }
     const stripe = getStripeClient();

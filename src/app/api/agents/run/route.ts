@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createToolApproval, buildMemoryContext, generateAgentTask } from "@/lib/server/agent-runtime";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { BillingAccessError, consumeApiUsage } from "@/lib/server/billing";
+import { BillingAccessError, consumeApiUsage, enforceAgentQuota, getWorkspaceSubscription } from "@/lib/server/billing";
 import { getWorkspaceConfiguration, getWorkspaceData, hasWorkspaceAccess, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
 import { getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 import type { ActivityEvent } from "@/types";
@@ -27,10 +27,12 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Instruction invalide" }, { status: 400 });
 
   try {
-    const [workspace, workspaceConfiguration] = await Promise.all([
+    const [workspace, workspaceConfiguration, subscription] = await Promise.all([
       getWorkspaceData(user.id),
       getWorkspaceConfiguration(user.id),
+      getWorkspaceSubscription(user.id),
     ]);
+    enforceAgentQuota(subscription, workspace.agents);
     const agent = workspace.agents.find((item) => item.id === parsed.data.agentId);
     if (!agent) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
     if (!agent.enabled) return NextResponse.json({ error: "Activez cet agent avant de lui confier une tâche." }, { status: 409 });

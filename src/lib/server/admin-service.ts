@@ -140,7 +140,7 @@ export async function listAdminWorkspaces(): Promise<AdminWorkspace[]> {
     subscription: (() => {
       const subscription = subscriptionsByWorkspace.get(workspace.id);
       return {
-        planId: subscription?.plan_id ?? "starter",
+        planId: subscription?.plan_id ?? "free",
         status: subscription?.status ?? "active",
         apiUsage: subscription?.api_usage ?? 0,
         currentPeriodEnd: subscription?.current_period_end,

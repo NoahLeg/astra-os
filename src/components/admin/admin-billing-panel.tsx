@@ -11,7 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import type { BillingOverview, SubscriptionPlan } from "@/types";
 
 export function AdminBillingPanel({ workspaceId, billing, onChanged }: { workspaceId: string; billing?: BillingOverview; onChanged: () => Promise<void> }) {
-  const [planId, setPlanId] = useState<SubscriptionPlan["id"]>(billing?.subscription.planId ?? "starter");
+  const [planId, setPlanId] = useState<SubscriptionPlan["id"]>(billing?.subscription.planId ?? "free");
   const [busyAction, setBusyAction] = useState<string>();
 
   const runAction = async (payload: Record<string, unknown>, successFallback: string) => {
@@ -37,8 +37,8 @@ export function AdminBillingPanel({ workspaceId, billing, onChanged }: { workspa
     if (planId === subscription.planId && !subscription.cancelAtPeriodEnd) return;
     const target = plans.find((plan) => plan.id === planId);
     const warning = subscription.managedByStripe
-      ? planId === "starter" ? "Le passage à Starter sera programmé à la fin de la période déjà payée." : "Stripe appliquera une proratisation sur le prochain cycle de facturation."
-      : planId === "starter" ? "L’offre gratuite sera appliquée immédiatement." : "Cette entreprise n’a pas d’abonnement Stripe. Le plan payant sera accordé manuellement sans prélèvement.";
+      ? planId === "free" ? "Le passage à Free sera programmé à la fin de la période déjà payée." : "Stripe appliquera une proratisation sur le prochain cycle de facturation."
+      : planId === "free" ? "L’offre gratuite sera appliquée immédiatement." : "Cette entreprise n’a pas d’abonnement Stripe. Le plan payant sera accordé manuellement sans prélèvement.";
     if (!window.confirm(`${warning}\n\nConfirmer le passage vers ${target?.name ?? planId} ?`)) return;
     await runAction({ action: "change_plan", planId }, "Offre mise à jour");
   };

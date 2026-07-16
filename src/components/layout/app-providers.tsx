@@ -5,13 +5,14 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/components/layout/theme-provider";
+import { applyInterfacePreferences } from "@/lib/interface-preferences";
 import { useAppStore } from "@/stores/app-store";
-import type { WorkspaceSubscription } from "@/types";
+import type { AccountPreferences, WorkspaceSubscription } from "@/types";
 
 function ClientRuntime({ children }: { children: React.ReactNode }) {
   const hydrateFromDatabase = useAppStore((state) => state.hydrateFromDatabase);
   const setAccount = useAppStore((state) => state.setAccount);
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const pathname = usePathname();
 
   useEffect(() => {
@@ -24,10 +25,11 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
       }
       const session = await sessionResponse.json() as {
         user: { id: string; email: string; user_metadata?: { full_name?: string } };
-        account?: { fullName?: string; accessLevel?: "viewer" | "operator" | "admin"; workspaceName?: string };
+        account?: { fullName?: string; accessLevel?: "viewer" | "operator" | "admin"; workspaceName?: string; preferences?: AccountPreferences };
         subscription?: WorkspaceSubscription;
         isAdmin?: boolean;
       };
+      const existingPreferences = useAppStore.getState().account?.preferences;
       setAccount({
         id: session.user.id,
         email: session.user.email,
@@ -36,7 +38,12 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
         workspaceName: session.account?.workspaceName,
         subscription: session.subscription,
         isAdmin: session.isAdmin,
+        preferences: session.account?.preferences,
       });
+      if (!existingPreferences && session.account?.preferences) {
+        applyInterfacePreferences(session.account.preferences);
+        setTheme(session.account.preferences.theme);
+      }
       if (!session.subscription?.onboardingCompleted && !pathname.startsWith("/onboarding/")) {
         window.location.replace("/onboarding/subscription");
         return;
@@ -44,7 +51,7 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
       if (pathname.startsWith("/onboarding/")) return;
       await hydrateFromDatabase();
     })();
-  }, [hydrateFromDatabase, pathname, setAccount]);
+  }, [hydrateFromDatabase, pathname, setAccount, setTheme]);
 
   return (
     <>

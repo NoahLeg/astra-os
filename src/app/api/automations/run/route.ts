@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildMemoryContext, createToolApproval, generateAgentTask } from "@/lib/server/agent-runtime";
+import { getAvailableAgentTools } from "@/lib/server/agent-tools";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { BillingAccessError, consumeApiUsage } from "@/lib/server/billing";
+import { BillingAccessError, consumeApiUsage, enforceAgentQuota, getWorkspaceSubscription } from "@/lib/server/billing";
 import { getWorkspaceConfiguration, getWorkspaceData, hasWorkspaceAccess, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
 import { getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 import type { ActivityEvent } from "@/types";
@@ -24,26 +25,33 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Automatisation invalide" }, { status: 400 });
 
   try {
-    const [workspace, workspaceConfiguration] = await Promise.all([
+    const [workspace, workspaceConfiguration, subscription] = await Promise.all([
       getWorkspaceData(user.id),
       getWorkspaceConfiguration(user.id),
+      getWorkspaceSubscription(user.id),
     ]);
+    enforceAgentQuota(subscription, workspace.agents);
     const automation = workspace.automations.find((item) => item.id === parsed.data.automationId);
     if (!automation) return NextResponse.json({ error: "Automatisation introuvable" }, { status: 404 });
     if (automation.status !== "active") return NextResponse.json({ error: "Activez cette automatisation avant de l'exécuter." }, { status: 409 });
 
     const requestedAgentNames = automation.nodes.filter((node) => node.type === "agent").map((node) => node.label.toLowerCase());
-    const selectedAgents = workspace.agents.filter((agent) => requestedAgentNames.some((name) => name.includes(agent.name.toLowerCase())));
-    const executor = selectedAgents[0] ?? workspace.agents.find((agent) => agent.id === "coordinateur");
+    const executor = workspace.agents.find((agent) => agent.id === automation.agentId)
+      ?? workspace.agents.find((agent) => requestedAgentNames.some((name) => name.includes(agent.name.toLowerCase())))
+      ?? workspace.agents.find((agent) => agent.id === "coordinateur");
     if (!executor) return NextResponse.json({ error: "Ajoutez un bloc Agent ou activez le Coordinateur." }, { status: 409 });
     if (!executor.enabled) return NextResponse.json({ error: `L'agent ${executor.name} doit être activé.` }, { status: 409 });
+    const availableTools = getAvailableAgentTools(executor.id, workspace.connections);
+    if (automation.preferredTool && automation.preferredTool !== "auto" && !availableTools.includes(automation.preferredTool)) {
+      return NextResponse.json({ error: `L’outil ${automation.preferredTool} n’est pas autorisé pour ${executor.name} ou son connecteur n’est pas actif.` }, { status: 409 });
+    }
 
     await consumeApiUsage(user.id, "automations", 1);
     const configuration = await getOpenAIConfiguration(user.id);
     const workflow = automation.nodes.map((node, index) => `${index + 1}. [${node.type}] ${node.label}`).join("\n");
     const taskResult = await generateAgentTask({
       agent: executor,
-      instruction: `Exécute la partie intellectuelle de cette automatisation et propose l'action externe suivante si un connecteur compatible est disponible.\nAutomatisation : ${automation.name}\nDescription : ${automation.description}\nWorkflow :\n${workflow}`,
+      instruction: `Exécute la partie intellectuelle de cette automatisation et prépare un livrable concret.\nAutomatisation : ${automation.name}\nDescription : ${automation.description}\nConsigne configurée : ${automation.instruction || automation.actions.join(" ; ") || "Produire le résultat attendu"}\nOutil attendu : ${automation.preferredTool && automation.preferredTool !== "auto" ? automation.preferredTool : "choix automatique uniquement si nécessaire"}\nWorkflow :\n${workflow}`,
       workspace,
       memoryContext: buildMemoryContext(workspace, Boolean(workspaceConfiguration?.settings.memoryEnabled), 15),
       configuration,
@@ -61,6 +69,9 @@ export async function POST(request: Request) {
       runCount,
       lastRun: new Date().toISOString(),
       successRate: Math.round(((automation.successRate * Math.max(0, runCount - 1)) + 100) / runCount),
+      lastResult: taskResult.result,
+      lastConfidence: taskResult.confidence,
+      lastStatus: approval ? "approval" as const : "completed" as const,
     };
     const activity: ActivityEvent = {
       id: randomUUID(),

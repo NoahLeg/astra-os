@@ -1,4 +1,4 @@
-import type { AccessLevel, AIModel, AutonomyLevel, FeatureKey, SubscriptionPlan, WorkspaceSettings } from "@/types";
+import type { AccessLevel, AccountPreferences, AIModel, AutonomyLevel, FeatureKey, SubscriptionPlan, WorkspaceSettings } from "@/types";
 
 export const PRODUCT_NAME = "Astra OS";
 
@@ -46,13 +46,26 @@ export const featureLabels: Record<FeatureKey, string> = {
 
 export const subscriptionPlans: SubscriptionPlan[] = [
   {
-    id: "starter",
-    name: "Starter",
-    description: "Pour structurer les premiers objectifs avec Astra.",
+    id: "free",
+    name: "Free",
+    description: "Pour découvrir Astra et structurer quelques objectifs.",
     monthlyPriceCents: 0,
-    apiLimit: 100,
+    apiLimit: 50,
+    dailyApiLimit: 10,
+    minuteApiLimit: 3,
     maxAgents: 0,
     features: ["assistant", "goals", "memory"],
+  },
+  {
+    id: "starter",
+    name: "Starter",
+    description: "Pour automatiser ses premiers processus sans surdimensionner son budget.",
+    monthlyPriceCents: 1900,
+    apiLimit: 500,
+    dailyApiLimit: 50,
+    minuteApiLimit: 10,
+    maxAgents: 2,
+    features: ["assistant", "goals", "memory", "agents", "connectors", "automations"],
   },
   {
     id: "pro",
@@ -60,6 +73,8 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     description: "Pour automatiser le travail d'une petite équipe.",
     monthlyPriceCents: 4900,
     apiLimit: 2_000,
+    dailyApiLimit: 150,
+    minuteApiLimit: 30,
     maxAgents: 5,
     features: ["assistant", "goals", "memory", "agents", "connectors", "automations"],
     highlighted: true,
@@ -69,11 +84,21 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     name: "Business",
     description: "Pour coordonner plusieurs agents et plusieurs utilisateurs.",
     monthlyPriceCents: 14900,
-    apiLimit: 10_000,
+    apiLimit: 8_000,
+    dailyApiLimit: 500,
+    minuteApiLimit: 60,
     maxAgents: 10,
     features: ["assistant", "goals", "memory", "agents", "connectors", "automations", "multi_agent", "team_admin"],
   },
 ];
+
+export const defaultAccountPreferences: AccountPreferences = {
+  theme: "dark",
+  accentColor: "indigo",
+  density: "comfortable",
+  reducedMotion: false,
+  landingPage: "/",
+};
 
 export const defaultWorkspaceSettings: WorkspaceSettings = {
   locale: "fr",

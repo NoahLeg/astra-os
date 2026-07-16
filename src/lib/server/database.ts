@@ -4,8 +4,8 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { activities, agents, approvals, automations, connections, goals, memoryItems, projects } from "@/mocks/data";
-import { accessRank, defaultWorkspaceSettings } from "@/config";
-import type { AccessLevel, AccountProfile, AccountStatus, WorkspaceData, WorkspaceSettings } from "@/types";
+import { accessRank, defaultAccountPreferences, defaultWorkspaceSettings } from "@/config";
+import type { AccessLevel, AccountPreferences, AccountProfile, AccountStatus, WorkspaceData, WorkspaceSettings } from "@/types";
 
 type Collection = keyof WorkspaceData;
 type WorkspaceRecord = WorkspaceData[Collection][number];
@@ -166,10 +166,10 @@ export async function getAccountProfile(userId: string, fallbackEmail = "") : Pr
   const context = await getUserWorkspaceContext(userId);
   if (!context) return null;
   if (!useSupabase) {
-    return { id: userId, email: fallbackEmail || "demo@local.test", fullName: "Utilisateur local", jobTitle: "", phone: "", timezone: "Europe/Paris", accessLevel: context.accessLevel, status: context.status, workspaceId: context.workspaceId, workspaceName: context.workspaceName };
+    return { id: userId, email: fallbackEmail || "demo@local.test", fullName: "Utilisateur local", jobTitle: "", phone: "", timezone: "Europe/Paris", accessLevel: context.accessLevel, status: context.status, workspaceId: context.workspaceId, workspaceName: context.workspaceName, preferences: defaultAccountPreferences };
   }
-  const rows = await supabaseRequest<Array<{ id: string; email: string; full_name: string; job_title?: string; phone?: string; timezone?: string }>>(
-    `profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,job_title,phone,timezone&limit=1`,
+  const rows = await supabaseRequest<Array<{ id: string; email: string; full_name: string; job_title?: string; phone?: string; timezone?: string; preferences?: Partial<AccountPreferences> }>>(
+    `profiles?id=eq.${encodeURIComponent(userId)}&select=id,email,full_name,job_title,phone,timezone,preferences&limit=1`,
   );
   const profile = rows[0];
   if (!profile) return null;
@@ -184,15 +184,16 @@ export async function getAccountProfile(userId: string, fallbackEmail = "") : Pr
     status: context.status,
     workspaceId: context.workspaceId,
     workspaceName: context.workspaceName,
+    preferences: { ...defaultAccountPreferences, ...(profile.preferences ?? {}) },
   };
 }
 
-export async function updateAccountProfile(userId: string, changes: { fullName: string; jobTitle: string; phone: string; timezone: string }) {
+export async function updateAccountProfile(userId: string, changes: { fullName: string; jobTitle: string; phone: string; timezone: string; preferences: AccountPreferences }) {
   if (!useSupabase) return getAccountProfile(userId);
   await supabaseRequest(`profiles?id=eq.${encodeURIComponent(userId)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ full_name: changes.fullName, job_title: changes.jobTitle, phone: changes.phone, timezone: changes.timezone, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ full_name: changes.fullName, job_title: changes.jobTitle, phone: changes.phone, timezone: changes.timezone, preferences: changes.preferences, updated_at: new Date().toISOString() }),
   });
   return getAccountProfile(userId);
 }
