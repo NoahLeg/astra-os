@@ -15,7 +15,7 @@ export const maxDuration = 120;
 const requestSchema = z.object({
   objective: z.string().trim().min(20).max(12_000),
   agentIds: z.array(z.string().trim().min(1).max(80)).min(2).max(5).refine((items) => new Set(items).size === items.length),
-  autonomyLevel: z.number().int().min(2).max(4),
+  autonomyLevel: z.union([z.literal(2), z.literal(3), z.literal(4)]),
 });
 
 const planResultSchema = z.object({

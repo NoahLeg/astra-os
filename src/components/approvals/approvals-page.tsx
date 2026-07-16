@@ -75,7 +75,7 @@ export function ApprovalsPage() {
         { key: "rejected", label: "Refusées", count: approvals.filter((item) => item.status === "rejected").length },
         { key: "all", label: "Toutes", count: approvals.length },
       ].map((item) => <Button key={item.key} variant={filter === item.key ? "secondary" : "ghost"} size="sm" onClick={() => setFilter(item.key)}>{item.label}<Badge className="ml-1 bg-card text-muted-foreground">{item.count}</Badge></Button>)}</div>
-      <div className="space-y-4">{visible.length ? visible.map((approval) => <ApprovalCard key={approval.id} approval={approval} busy={busyId === approval.id || busyId === "batch"} onResolve={(status) => resolve(approval, status)} />) : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed text-center"><ShieldCheck className="size-8 text-emerald-500" /><h2 className="mt-4 font-medium">Aucune validation dans cette vue</h2><p className="mt-1 text-sm text-muted-foreground">Les nouvelles demandes d'outils apparaîtront ici.</p></div>}</div>
+      <div className="space-y-4">{visible.length ? visible.map((approval) => <ApprovalCard key={approval.id} approval={approval} busy={busyId === approval.id || busyId === "batch"} onResolve={(status) => resolve(approval, status)} />) : <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed text-center"><ShieldCheck className="size-8 text-emerald-500" /><h2 className="mt-4 font-medium">Aucune validation dans cette vue</h2><p className="mt-1 text-sm text-muted-foreground">Les nouvelles demandes d’outils apparaîtront ici.</p></div>}</div>
     </div>
   );
 }

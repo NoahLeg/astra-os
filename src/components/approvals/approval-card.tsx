@@ -47,7 +47,7 @@ export function ApprovalCard({
                 <div className="rounded-xl bg-muted/40 p-3"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Impact</p><p className="mt-1 text-xs font-medium">{approval.impact}</p></div>
                 <div className="rounded-xl bg-muted/40 p-3"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">Modèle</p><p className="mt-1 text-xs font-medium">{approval.model}</p></div>
               </div>
-              {preview ? <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4"><p className="text-xs font-medium">Prévisualisation de l'action</p><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words font-sans text-xs leading-5 text-muted-foreground">{preview}</pre></div> : null}
+              {preview ? <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4"><p className="text-xs font-medium">Prévisualisation de l’action</p><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words font-sans text-xs leading-5 text-muted-foreground">{preview}</pre></div> : null}
               <div className="mt-4 rounded-xl border bg-background p-4"><p className="text-xs font-medium">Pourquoi cette action ?</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{approval.explanation}</p><p className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground"><Database className="size-3" />Données utilisées : {approval.dataUsed.join(", ")}</p>{approval.executionResult ? <p className="mt-2 text-xs font-medium text-emerald-500">{approval.executionResult}</p> : null}</div>
             </div>
           </div>

@@ -16,6 +16,11 @@ interface SubscriptionRow {
   api_usage_reset_at: string;
 }
 
+type WorkspaceBillingIdentifiers = Pick<
+  SubscriptionRow,
+  "stripe_customer_id" | "stripe_subscription_id" | "plan_id" | "status"
+>;
+
 export class BillingAccessError extends Error {
   constructor(message: string, public status: number) {
     super(message);
@@ -93,9 +98,9 @@ export async function getWorkspaceSubscription(userId: string) {
   return getWorkspaceSubscriptionByWorkspaceId(workspaceId);
 }
 
-export async function getWorkspaceBillingIdentifiers(workspaceId: string) {
+export async function getWorkspaceBillingIdentifiers(workspaceId: string): Promise<Partial<WorkspaceBillingIdentifiers>> {
   if (!isSupabaseDatabaseEnabled()) return {};
-  const rows = await serverDatabaseRequest<Array<Pick<SubscriptionRow, "stripe_customer_id" | "stripe_subscription_id" | "plan_id" | "status">>>(
+  const rows = await serverDatabaseRequest<WorkspaceBillingIdentifiers[]>(
     `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=stripe_customer_id,stripe_subscription_id,plan_id,status&limit=1`,
   );
   return rows[0] ?? {};

@@ -73,6 +73,13 @@ SECRETS_ENCRYPTION_KEY=
 OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GOOGLE_GENERATIVE_AI_API_KEY=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_PRO=
+STRIPE_PRICE_BUSINESS=
 ```
 
 Les variables `NEXT_PUBLIC_*` sont visibles dans le navigateur. **N’y placez jamais de secret, token privé, clé API fournisseur ou signature de webhook.** Les secrets doivent rester dans des variables serveur sans préfixe public.
@@ -193,6 +200,10 @@ vercel env add SUPABASE_URL production
 vercel env add SUPABASE_PUBLISHABLE_KEY production
 vercel env add SUPABASE_SECRET_KEY production
 vercel env add OPENAI_API_KEY production
+vercel env add STRIPE_SECRET_KEY production
+vercel env add STRIPE_WEBHOOK_SECRET production
+vercel env add STRIPE_PRICE_PRO production
+vercel env add STRIPE_PRICE_BUSINESS production
 vercel --prod
 ```
 
@@ -264,6 +275,31 @@ Pour une démonstration locale, définir `NEXT_PUBLIC_N8N_WEBHOOK_URL`. Pour la 
 7. renvoyer uniquement un statut public au navigateur.
 
 Le constructeur d’automatisation expose des nœuds `trigger`, `condition`, `agent`, `action`, `approval` et `result`. Ils peuvent être convertis en JSON n8n par un adaptateur serveur dédié.
+
+## Agents et missions multi-agents
+
+La page `/orchestration` rassemble de 2 à 5 agents pour une mission complexe. Le Coordinateur construit une délégation, les agents produisent leurs résultats puis une synthèse est enregistrée dans l’espace de travail.
+
+Les agents Email, Calendrier et Documents peuvent proposer respectivement l’envoi d’un e-mail Gmail, la création d’un événement Google Calendar ou d’un document Google Drive. Aucune action externe n’est exécutée pendant la réflexion : une demande détaillée apparaît d’abord dans `/approvals`, avec les données utilisées et une confirmation explicite.
+
+Les appels d’agent consomment le quota de l’entreprise de manière atomique. Les outils sont validés avec Zod côté serveur et les tokens OAuth restent chiffrés côté Supabase.
+
+## Abonnements Stripe
+
+La page `/billing` applique les limites de chaque offre :
+
+- **Starter** — objectifs, assistant et mémoire, 100 appels API/mois ;
+- **Pro** — connecteurs, automatisations et jusqu’à 5 agents, 2 000 appels API/mois ;
+- **Business** — orchestration multi-agents, administration et jusqu’à 10 agents, 10 000 appels API/mois.
+
+1. dans Stripe, créez deux produits récurrents mensuels : Pro et Business ;
+2. copiez leurs identifiants de prix (`price_...`) dans `STRIPE_PRICE_PRO` et `STRIPE_PRICE_BUSINESS` ;
+3. ajoutez `STRIPE_SECRET_KEY` dans Vercel, sans préfixe `NEXT_PUBLIC_` ;
+4. dans Stripe Developers → Webhooks, ajoutez `https://votre-domaine.vercel.app/api/billing/webhook` ;
+5. sélectionnez au minimum `checkout.session.completed`, `customer.subscription.updated` et `customer.subscription.deleted` ;
+6. copiez le secret de signature (`whsec_...`) dans `STRIPE_WEBHOOK_SECRET` puis redéployez.
+
+Le webhook est exempté du contrôle de session, mais sa signature Stripe est vérifiée avant toute mise à jour de l’abonnement. Sans les variables Stripe, l’offre Starter reste disponible et les boutons de paiement sont désactivés.
 
 ## WebSocket ou SSE
 
