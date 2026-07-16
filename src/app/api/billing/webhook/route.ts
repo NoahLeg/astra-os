@@ -30,6 +30,7 @@ async function syncSubscription(subscription: Stripe.Subscription, fallback?: { 
     subscriptionId: subscription.id,
     currentPeriodEnd: periodEnd ? new Date(periodEnd * 1_000).toISOString() : undefined,
     cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    onboardingCompleted: true,
   });
 }
 
@@ -57,7 +58,18 @@ export async function POST(request: Request) {
         });
       }
     }
-    if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    if (event.type === "customer.subscription.deleted") {
+      const deletedSubscription = event.data.object as Stripe.Subscription;
+      const workspaceId = deletedSubscription.metadata.workspaceId || await findWorkspaceIdByStripeSubscriptionId(deletedSubscription.id);
+      if (!workspaceId) throw new Error("Workspace Stripe introuvable après résiliation.");
+      await updateWorkspaceSubscriptionFromStripe({
+        workspaceId,
+        planId: "starter",
+        status: "active",
+        customerId: stripeId(deletedSubscription.customer),
+        onboardingCompleted: true,
+      });
+    } else if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
       await syncSubscription(event.data.object as Stripe.Subscription);
     }
     return NextResponse.json({ received: true });

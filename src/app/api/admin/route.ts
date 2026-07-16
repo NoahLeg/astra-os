@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSuperAdmin } from "@/lib/server/auth";
 import { deleteWorkspaceSecret, listAdminWorkspaces, listWorkspaceAuditLogs, listWorkspaceSecrets, saveWorkspaceSecret } from "@/lib/server/admin-service";
+import { getSubscriptionPlans, getWorkspaceSubscriptionByWorkspaceId, listWorkspaceInvoices } from "@/lib/server/billing";
 
 const secretSchema = z.object({ workspaceId: z.uuid(), provider: z.string().trim().min(2).max(50), label: z.string().trim().min(2).max(80), baseUrl: z.union([z.url(), z.literal("")]).optional(), secret: z.string().min(8).max(10_000) });
 
@@ -11,8 +12,8 @@ export async function GET(request: Request) {
   try {
     const workspaceId = new URL(request.url).searchParams.get("workspaceId");
     if (workspaceId) {
-      const [secrets, auditLogs] = await Promise.all([listWorkspaceSecrets(workspaceId), listWorkspaceAuditLogs(workspaceId)]);
-      return NextResponse.json({ secrets, auditLogs });
+      const [secrets, auditLogs, subscription, invoices] = await Promise.all([listWorkspaceSecrets(workspaceId), listWorkspaceAuditLogs(workspaceId), getWorkspaceSubscriptionByWorkspaceId(workspaceId), listWorkspaceInvoices(workspaceId)]);
+      return NextResponse.json({ secrets, auditLogs, billing: { plans: getSubscriptionPlans(), subscription, invoices } });
     }
     return NextResponse.json({ workspaces: await listAdminWorkspaces() });
   } catch {

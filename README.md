@@ -301,6 +301,8 @@ La page `/billing` applique les limites de chaque offre :
 
 Le webhook est exempté du contrôle de session, mais sa signature Stripe est vérifiée avant toute mise à jour de l’abonnement. Sans les variables Stripe, l’offre Starter reste disponible et les boutons de paiement sont désactivés.
 
+Après la première connexion, les nouveaux administrateurs passent par `/onboarding/subscription` et choisissent explicitement Starter ou une offre payante. Les comptes existants ne sont pas redirigés à nouveau. La page `/account` présente ensuite le plan, la prochaine échéance, le quota mensuel et les factures Stripe. La console `/admin` permet au Super Admin de changer une offre, programmer un retour à Starter, annuler une résiliation et réinitialiser le quota API ; chaque action est journalisée.
+
 ## WebSocket ou SSE
 
 La simulation est encapsulée dans `activityService.subscribe`. Pour une source réelle :

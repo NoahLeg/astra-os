@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { getSubscriptionPlans, getWorkspaceSubscription } from "@/lib/server/billing";
+import { getSubscriptionPlans, getWorkspaceSubscription, listWorkspaceInvoices } from "@/lib/server/billing";
 import { hasWorkspaceAccess } from "@/lib/server/database";
 
 export const runtime = "nodejs";
@@ -11,7 +11,9 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: "Authentification requise" }, { status: 401 });
   if (!await hasWorkspaceAccess(user.id, "admin")) return NextResponse.json({ error: "Accès administrateur requis" }, { status: 403 });
   try {
-    return NextResponse.json({ plans: getSubscriptionPlans(), subscription: await getWorkspaceSubscription(user.id) });
+    const subscription = await getWorkspaceSubscription(user.id);
+    const invoices = await listWorkspaceInvoices(subscription.workspaceId);
+    return NextResponse.json({ plans: getSubscriptionPlans(), subscription, invoices });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Abonnement indisponible" }, { status: 503 });
   }

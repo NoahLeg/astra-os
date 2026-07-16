@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import type { AccessLevel, AccountStatus } from "@/types";
+import type { AccessLevel, AccountStatus, SubscriptionPlan, SubscriptionStatus } from "@/types";
 
 export interface AdminAccount {
   id: string;
@@ -21,6 +21,15 @@ export interface AdminWorkspace {
   slug: string;
   createdAt: string;
   accounts: AdminAccount[];
+  subscription: {
+    planId: SubscriptionPlan["id"];
+    status: SubscriptionStatus;
+    apiUsage: number;
+    currentPeriodEnd?: string;
+    cancelAtPeriodEnd: boolean;
+    onboardingCompleted: boolean;
+    managedByStripe: boolean;
+  };
 }
 
 export interface AdminSecret {
@@ -113,19 +122,33 @@ function decryptSecret(encryptedValue: string, encryptionIv: string, authTag: st
 }
 
 export async function listAdminWorkspaces(): Promise<AdminWorkspace[]> {
-  const [workspaces, memberships, profiles, authUsers] = await Promise.all([
+  const [workspaces, memberships, profiles, subscriptions, authUsers] = await Promise.all([
     adminRequest<Array<{ id: string; name: string; slug: string; created_at: string }>>("workspaces?select=id,name,slug,created_at&order=created_at.desc"),
     adminRequest<Array<{ workspace_id: string; user_id: string; role: string; access_level?: string; status?: string }>>("workspace_members?select=workspace_id,user_id,role,access_level,status"),
     adminRequest<Array<{ id: string; email: string; full_name: string; created_at: string }>>("profiles?select=id,email,full_name,created_at"),
+    adminRequest<Array<{ workspace_id: string; plan_id: SubscriptionPlan["id"]; status: SubscriptionStatus; api_usage: number; current_period_end?: string; cancel_at_period_end: boolean; onboarding_completed_at?: string; stripe_subscription_id?: string }>>("workspace_subscriptions?select=workspace_id,plan_id,status,api_usage,current_period_end,cancel_at_period_end,onboarding_completed_at,stripe_subscription_id"),
     authAdminRequest<{ users?: Array<{ id: string; last_sign_in_at?: string; email_confirmed_at?: string }> }>("admin/users?page=1&per_page=1000").catch(() => ({ users: [] })),
   ]);
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
   const authUsersById = new Map((authUsers.users ?? []).map((user) => [user.id, user]));
+  const subscriptionsByWorkspace = new Map(subscriptions.map((subscription) => [subscription.workspace_id, subscription]));
   return workspaces.map((workspace) => ({
     id: workspace.id,
     name: workspace.name,
     slug: workspace.slug,
     createdAt: workspace.created_at,
+    subscription: (() => {
+      const subscription = subscriptionsByWorkspace.get(workspace.id);
+      return {
+        planId: subscription?.plan_id ?? "starter",
+        status: subscription?.status ?? "active",
+        apiUsage: subscription?.api_usage ?? 0,
+        currentPeriodEnd: subscription?.current_period_end,
+        cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
+        onboardingCompleted: Boolean(subscription?.onboarding_completed_at),
+        managedByStripe: Boolean(subscription?.stripe_subscription_id),
+      };
+    })(),
     accounts: memberships.filter((membership) => membership.workspace_id === workspace.id).flatMap((membership) => {
       const profile = profilesById.get(membership.user_id);
       const authUser = authUsersById.get(membership.user_id);
@@ -223,4 +246,8 @@ export async function getWorkspaceProviderSecret(input: { workspaceId: string; p
 
 async function writeAuditLog(input: { workspaceId?: string; actorUserId: string; action: string; targetType: string; targetId?: string; metadata?: Record<string, unknown> }) {
   await adminRequest("audit_logs", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ workspace_id: input.workspaceId, actor_user_id: input.actorUserId, action: input.action, target_type: input.targetType, target_id: input.targetId, metadata: input.metadata ?? {} }) });
+}
+
+export function writeAdminAuditLog(input: { workspaceId?: string; actorUserId: string; action: string; targetType: string; targetId?: string; metadata?: Record<string, unknown> }) {
+  return writeAuditLog(input);
 }

@@ -1,4 +1,4 @@
-import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkspaceData, WorkspaceSettings, WorkspaceSubscription } from "@/types";
+import type { AccountProfile, ActivityEvent, AgentExecution, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkspaceData, WorkspaceSettings } from "@/types";
 import { apiClient, simulate } from "./api-client";
 
 type Collection = keyof WorkspaceData;
@@ -96,10 +96,10 @@ export const orchestrationService = {
 };
 
 export const billingService = {
-  load: async () => (await apiClient<{ plans: SubscriptionPlan[]; subscription: WorkspaceSubscription }>("/api/billing", { cache: "no-store" })).data,
-  checkout: async (planId: SubscriptionPlan["id"]) => (await apiClient<{ url: string }>("/api/billing/checkout", {
+  load: async () => (await apiClient<BillingOverview>("/api/billing", { cache: "no-store" })).data,
+  checkout: async (planId: SubscriptionPlan["id"], returnTo: "billing" | "onboarding" = "billing") => (await apiClient<{ url: string }>("/api/billing/checkout", {
     method: "POST",
-    body: JSON.stringify({ planId }),
+    body: JSON.stringify({ planId, returnTo }),
   })).data,
   portal: async () => (await apiClient<{ url: string }>("/api/billing/portal", { method: "POST" })).data,
 };

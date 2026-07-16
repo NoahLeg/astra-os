@@ -15,7 +15,7 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (pathname === "/login" || pathname === "/forgot-password" || pathname.startsWith("/auth/")) return;
+    if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname.startsWith("/auth/")) return;
     void (async () => {
       const sessionResponse = await fetch("/api/auth/session", { cache: "no-store" });
       if (!sessionResponse.ok) {
@@ -37,6 +37,11 @@ function ClientRuntime({ children }: { children: React.ReactNode }) {
         subscription: session.subscription,
         isAdmin: session.isAdmin,
       });
+      if (!session.subscription?.onboardingCompleted && !pathname.startsWith("/onboarding/")) {
+        window.location.replace("/onboarding/subscription");
+        return;
+      }
+      if (pathname.startsWith("/onboarding/")) return;
       await hydrateFromDatabase();
     })();
   }, [hydrateFromDatabase, pathname, setAccount]);

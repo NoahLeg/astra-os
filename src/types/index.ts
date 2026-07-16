@@ -51,8 +51,30 @@ export interface WorkspaceSubscription {
   usageResetAt: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;
+  onboardingCompleted: boolean;
+  managedByStripe: boolean;
   features: FeatureKey[];
   stripeConfigured: boolean;
+}
+
+export interface BillingInvoice {
+  id: string;
+  number?: string;
+  status: "draft" | "open" | "paid" | "void" | "uncollectible";
+  amountDueCents: number;
+  amountPaidCents: number;
+  currency: string;
+  createdAt: string;
+  periodStart?: string;
+  periodEnd?: string;
+  hostedInvoiceUrl?: string;
+  invoicePdfUrl?: string;
+}
+
+export interface BillingOverview {
+  plans: SubscriptionPlan[];
+  subscription: WorkspaceSubscription;
+  invoices: BillingInvoice[];
 }
 
 export interface WorkspaceSettings {

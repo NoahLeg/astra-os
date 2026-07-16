@@ -8,7 +8,10 @@ import { getStripeClient } from "@/lib/server/stripe";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const requestSchema = z.object({ planId: z.enum(["starter", "pro", "business"]) });
+const requestSchema = z.object({
+  planId: z.enum(["starter", "pro", "business"]),
+  returnTo: z.enum(["billing", "onboarding"]).default("billing"),
+});
 
 export async function POST(request: Request) {
   const user = await getAuthenticatedUser(request);
@@ -22,14 +25,15 @@ export async function POST(request: Request) {
   try {
     const subscription = await getWorkspaceSubscription(user.id);
     const identifiers = await getWorkspaceBillingIdentifiers(subscription.workspaceId);
-    const returnUrl = `${new URL(request.url).origin}/billing`;
+    const returnPath = parsed.data.returnTo === "onboarding" ? "/onboarding/subscription" : "/billing";
+    const returnUrl = `${new URL(request.url).origin}${returnPath}`;
     if (identifiers.stripe_customer_id && identifiers.stripe_subscription_id) {
       const stripe = getStripeClient();
       const portal = await stripe.billingPortal.sessions.create({ customer: identifiers.stripe_customer_id, return_url: returnUrl });
       return NextResponse.json({ url: portal.url });
     }
     if (parsed.data.planId === "starter") {
-      await updateWorkspaceSubscriptionFromStripe({ workspaceId: subscription.workspaceId, planId: "starter", status: "active" });
+      await updateWorkspaceSubscriptionFromStripe({ workspaceId: subscription.workspaceId, planId: "starter", status: "active", onboardingCompleted: true });
       return NextResponse.json({ url: `${returnUrl}?checkout=success` });
     }
     const stripe = getStripeClient();

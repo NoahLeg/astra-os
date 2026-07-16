@@ -2,7 +2,8 @@ import "server-only";
 
 import { subscriptionPlans } from "@/config";
 import { getWorkspaceIdForUser, isSupabaseDatabaseEnabled, serverDatabaseRequest } from "@/lib/server/database";
-import type { FeatureKey, SubscriptionPlan, SubscriptionStatus, WorkspaceSubscription } from "@/types";
+import { getStripeClient } from "@/lib/server/stripe";
+import type { BillingInvoice, FeatureKey, SubscriptionPlan, SubscriptionStatus, WorkspaceSubscription } from "@/types";
 
 interface SubscriptionRow {
   workspace_id: string;
@@ -12,6 +13,7 @@ interface SubscriptionRow {
   stripe_subscription_id?: string;
   current_period_end?: string;
   cancel_at_period_end?: boolean;
+  onboarding_completed_at?: string;
   api_usage: number;
   api_usage_reset_at: string;
 }
@@ -47,6 +49,8 @@ function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan): 
     usageResetAt: row.api_usage_reset_at,
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
+    onboardingCompleted: Boolean(row.onboarding_completed_at),
+    managedByStripe: Boolean(row.stripe_customer_id && row.stripe_subscription_id),
     features: plan.features,
     stripeConfigured: stripeConfiguredForPaidPlans(),
   };
@@ -63,6 +67,8 @@ function localSubscription(): WorkspaceSubscription {
     apiLimit: plan.apiLimit,
     usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(),
     cancelAtPeriodEnd: false,
+    onboardingCompleted: true,
+    managedByStripe: false,
     features: plan.features,
     stripeConfigured: stripeConfiguredForPaidPlans(),
   };
@@ -75,7 +81,7 @@ export function getSubscriptionPlans() {
 export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string): Promise<WorkspaceSubscription> {
   if (!isSupabaseDatabaseEnabled() || workspaceId === "local") return localSubscription();
   let rows = await serverDatabaseRequest<SubscriptionRow[]>(
-    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,api_usage,api_usage_reset_at&limit=1`,
+    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at&limit=1`,
   );
   if (!rows[0]) {
     await serverDatabaseRequest("workspace_subscriptions?on_conflict=workspace_id", {
@@ -84,7 +90,7 @@ export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string)
       body: JSON.stringify({ workspace_id: workspaceId, plan_id: "starter", status: "active" }),
     });
     rows = await serverDatabaseRequest<SubscriptionRow[]>(
-      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,api_usage,api_usage_reset_at&limit=1`,
+      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at&limit=1`,
     );
   }
   const row = rows[0];
@@ -104,6 +110,33 @@ export async function getWorkspaceBillingIdentifiers(workspaceId: string): Promi
     `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=stripe_customer_id,stripe_subscription_id,plan_id,status&limit=1`,
   );
   return rows[0] ?? {};
+}
+
+export async function listWorkspaceInvoices(workspaceId: string): Promise<BillingInvoice[]> {
+  const identifiers = await getWorkspaceBillingIdentifiers(workspaceId);
+  if (!identifiers.stripe_customer_id || !process.env.STRIPE_SECRET_KEY) return [];
+  const invoices = await getStripeClient().invoices.list({ customer: identifiers.stripe_customer_id, limit: 12 });
+  return invoices.data.map((invoice) => ({
+    id: invoice.id,
+    number: invoice.number ?? undefined,
+    status: invoice.status ?? "draft",
+    amountDueCents: invoice.amount_due,
+    amountPaidCents: invoice.amount_paid,
+    currency: invoice.currency,
+    createdAt: new Date(invoice.created * 1_000).toISOString(),
+    periodStart: invoice.period_start ? new Date(invoice.period_start * 1_000).toISOString() : undefined,
+    periodEnd: invoice.period_end ? new Date(invoice.period_end * 1_000).toISOString() : undefined,
+    hostedInvoiceUrl: invoice.hosted_invoice_url ?? undefined,
+    invoicePdfUrl: invoice.invoice_pdf ?? undefined,
+  }));
+}
+
+export async function resetWorkspaceApiUsage(workspaceId: string) {
+  await serverDatabaseRequest(`workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ api_usage: 0, api_usage_reset_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(), updated_at: new Date().toISOString() }),
+  });
 }
 
 export async function requireSubscriptionFeature(userId: string, feature: FeatureKey) {
@@ -161,6 +194,7 @@ export async function updateWorkspaceSubscriptionFromStripe(input: {
   subscriptionId?: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd?: boolean;
+  onboardingCompleted?: boolean;
 }) {
   await serverDatabaseRequest("workspace_subscriptions?on_conflict=workspace_id", {
     method: "POST",
@@ -173,6 +207,7 @@ export async function updateWorkspaceSubscriptionFromStripe(input: {
       stripe_subscription_id: input.subscriptionId ?? null,
       current_period_end: input.currentPeriodEnd ?? null,
       cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
+      ...(input.onboardingCompleted ? { onboarding_completed_at: new Date().toISOString() } : {}),
       updated_at: new Date().toISOString(),
     }),
   });

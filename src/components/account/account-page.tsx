@@ -12,6 +12,7 @@ import { accessLevels } from "@/config";
 import { accountService } from "@/services";
 import { useAppStore } from "@/stores/app-store";
 import type { AccountProfile } from "@/types";
+import { AccountBillingPanel } from "./account-billing-panel";
 
 export function AccountPage() {
   const setAccount = useAppStore((state) => state.setAccount);
@@ -82,6 +83,7 @@ export function AccountPage() {
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="size-4" />Sécurité</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex items-center gap-3 rounded-xl border p-3"><Mail className="size-4 text-emerald-500" /><div><p className="text-sm font-medium">Compte actif</p><p className="text-xs text-muted-foreground">Session sécurisée par cookies HTTP-only.</p></div></div><Button variant="outline" className="w-full" onClick={() => void requestPasswordReset()} disabled={resetting}>{resetting ? <LoaderCircle className="size-4 animate-spin" /> : <KeyRound className="size-4" />}Changer mon mot de passe</Button></CardContent></Card>
         </div>
       </div>
+      {currentAccount?.accessLevel === "admin" ? <AccountBillingPanel /> : null}
     </div>
   );
 }

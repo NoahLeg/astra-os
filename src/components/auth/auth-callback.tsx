@@ -26,7 +26,7 @@ export function AuthCallback() {
       }
       window.history.replaceState(null, "", window.location.pathname);
       const destination = searchParams.get("next");
-      window.location.replace(destination?.startsWith("/") ? destination : "/");
+      window.location.replace(destination?.startsWith("/") ? destination : "/onboarding/subscription");
     };
     void finishAuthentication();
   }, [searchParams]);

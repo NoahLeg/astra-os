@@ -17,7 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const dataStatus = useAppStore((state) => state.dataStatus);
   const dataError = useAppStore((state) => state.dataError);
   const account = useAppStore((state) => state.account);
-  if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname.startsWith("/auth/")) return <>{children}</>;
+  if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname.startsWith("/auth/") || pathname.startsWith("/onboarding/")) return <>{children}</>;
   if (pathname.startsWith("/admin")) return <>{children}</>;
   if (dataStatus === "loading") return <div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><LoaderCircle className="mx-auto size-8 animate-spin text-indigo-500" /><p className="mt-4 text-sm text-muted-foreground">Chargement de votre espace sécurisé…</p></div></div>;
   if (dataStatus === "error") return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md rounded-2xl border bg-card p-6 text-center"><h1 className="font-semibold">Espace indisponible</h1><p className="mt-2 text-sm text-muted-foreground">{dataError}</p><button onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">Réessayer</button></div></div>;
