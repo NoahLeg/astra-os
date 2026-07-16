@@ -1,7 +1,8 @@
 import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import type { AccessLevel, AccountStatus, SubscriptionPlan, SubscriptionStatus } from "@/types";
+import { getWorkspaceSubscriptionByWorkspaceId } from "@/lib/server/billing";
+import type { AccessLevel, AccountStatus, SubscriptionPlan, SubscriptionStatus, TeamMember } from "@/types";
 
 export interface AdminAccount {
   id: string;
@@ -164,7 +165,36 @@ export async function listWorkspaceAuditLogs(workspaceId: string): Promise<Admin
   return rows.map((row) => ({ id: row.id, action: row.action, targetType: row.target_type, targetId: row.target_id, metadata: row.metadata ?? {}, createdAt: row.created_at }));
 }
 
+export async function listWorkspaceMembers(workspaceId: string): Promise<TeamMember[]> {
+  const memberships = await adminRequest<Array<{ user_id: string; role: string; access_level?: string; status?: string; created_at: string }>>(
+    `workspace_members?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=user_id,role,access_level,status,created_at&order=created_at.asc`,
+  );
+  if (!memberships.length) return [];
+  const memberIds = memberships.map((membership) => membership.user_id).join(",");
+  const profiles = await adminRequest<Array<{ id: string; email: string; full_name: string }>>(
+    `profiles?id=in.(${memberIds})&select=id,email,full_name`,
+  );
+  const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+  return memberships.flatMap((membership) => {
+    const profile = profilesById.get(membership.user_id);
+    return profile ? [{
+      id: profile.id,
+      email: profile.email,
+      fullName: profile.full_name || profile.email.split("@")[0],
+      role: membership.role,
+      accessLevel: normalizeAccessLevel(membership.access_level, membership.role),
+      status: membership.status === "suspended" ? "suspended" as const : "active" as const,
+      joinedAt: membership.created_at,
+      isOwner: membership.role === "owner",
+    }] : [];
+  });
+}
+
 export async function inviteWorkspaceMember(input: { workspaceId: string; email: string; fullName: string; accessLevel: AccessLevel; redirectTo: string; actorUserId: string }) {
+  const subscription = await getWorkspaceSubscriptionByWorkspaceId(input.workspaceId);
+  if (subscription.memberCount >= subscription.maxMembers) {
+    throw new Error(`La limite de ${subscription.maxMembers} siège${subscription.maxMembers > 1 ? "s" : ""} de cette offre est atteinte.`);
+  }
   const normalizedEmail = input.email.trim().toLowerCase();
   const existingProfiles = await adminRequest<Array<{ id: string }>>(`profiles?email=eq.${encodeURIComponent(normalizedEmail)}&select=id&limit=1`);
   let userId: string | undefined = existingProfiles[0]?.id;
@@ -188,6 +218,16 @@ export async function inviteWorkspaceMember(input: { workspaceId: string; email:
 }
 
 export async function updateWorkspaceMember(input: { workspaceId: string; userId: string; accessLevel?: AccessLevel; status?: AccountStatus; actorUserId: string }) {
+  const memberships = await adminRequest<Array<{ role: string; status?: string }>>(
+    `workspace_members?workspace_id=eq.${encodeURIComponent(input.workspaceId)}&user_id=eq.${encodeURIComponent(input.userId)}&select=role,status&limit=1`,
+  );
+  const membership = memberships[0];
+  if (!membership) throw new Error("Ce membre n’appartient plus à l’entreprise.");
+  if (membership.role === "owner") throw new Error("Le propriétaire de l’entreprise ne peut pas être modifié.");
+  if (input.status === "active" && membership.status === "suspended") {
+    const subscription = await getWorkspaceSubscriptionByWorkspaceId(input.workspaceId);
+    if (subscription.memberCount >= subscription.maxMembers) throw new Error(`La limite de ${subscription.maxMembers} sièges est atteinte.`);
+  }
   const changes: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.accessLevel) {
     changes.access_level = input.accessLevel;
@@ -198,8 +238,27 @@ export async function updateWorkspaceMember(input: { workspaceId: string; userId
   await writeAuditLog({ workspaceId: input.workspaceId, actorUserId: input.actorUserId, action: "workspace_member.updated", targetType: "account", targetId: input.userId, metadata: { accessLevel: input.accessLevel, status: input.status } });
 }
 
+export async function removeWorkspaceMember(input: { workspaceId: string; userId: string; actorUserId: string }) {
+  if (input.userId === input.actorUserId) throw new Error("Vous ne pouvez pas retirer votre propre accès.");
+  const memberships = await adminRequest<Array<{ role: string }>>(
+    `workspace_members?workspace_id=eq.${encodeURIComponent(input.workspaceId)}&user_id=eq.${encodeURIComponent(input.userId)}&select=role&limit=1`,
+  );
+  if (!memberships[0]) throw new Error("Ce membre n’appartient plus à l’entreprise.");
+  if (memberships[0].role === "owner") throw new Error("Le propriétaire de l’entreprise ne peut pas être retiré.");
+  await adminRequest(`workspace_members?workspace_id=eq.${encodeURIComponent(input.workspaceId)}&user_id=eq.${encodeURIComponent(input.userId)}`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  });
+  await writeAuditLog({ workspaceId: input.workspaceId, actorUserId: input.actorUserId, action: "workspace_member.removed", targetType: "account", targetId: input.userId });
+}
+
 export async function deleteManagedAccount(input: { workspaceId: string; userId: string; actorUserId: string }) {
   if (input.userId === input.actorUserId) throw new Error("Vous ne pouvez pas supprimer votre propre compte Super Admin.");
+  const memberships = await adminRequest<Array<{ role: string }>>(
+    `workspace_members?workspace_id=eq.${encodeURIComponent(input.workspaceId)}&user_id=eq.${encodeURIComponent(input.userId)}&select=role&limit=1`,
+  );
+  if (!memberships[0]) throw new Error("Ce compte n’appartient plus à l’entreprise.");
+  if (memberships[0].role === "owner") throw new Error("Transférez la propriété de l’entreprise avant de supprimer ce compte.");
   await writeAuditLog({ workspaceId: input.workspaceId, actorUserId: input.actorUserId, action: "account.deleted", targetType: "account", targetId: input.userId });
   await authAdminRequest(`admin/users/${encodeURIComponent(input.userId)}`, { method: "DELETE" });
 }

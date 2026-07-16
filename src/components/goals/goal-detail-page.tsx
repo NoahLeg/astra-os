@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { notFound, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { Bot, CalendarDays, CheckCircle2, FileText, ListChecks, RotateCcw, Save, Trash2 } from "lucide-react";
+import { notFound, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { Bot, CalendarDays, CheckCircle2, Crown, FileText, ListChecks, RotateCcw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ExecutionTimeline } from "@/components/shared/execution-timeline";
 import { ConfidenceIndicator } from "@/components/shared/indicators";
 import { WorkItemAgentDialog } from "@/components/shared/work-item-agent-dialog";
+import { TaskCollaborationDialog } from "@/components/goals/task-collaboration-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,15 +23,17 @@ const tabs = ["Vue d’ensemble", "Plan", "Tâches", "Activité", "Documents", "
 
 export function GoalDetailPage({ id }: { id: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const goal = useAppStore((state) => state.goals.find((item) => item.id === id));
   const agents = useAppStore((state) => state.agents);
   const activities = useAppStore((state) => state.activities);
   const memories = useAppStore((state) => state.memories);
   const connections = useAppStore((state) => state.connections);
   const account = useAppStore((state) => state.account);
+  const hydrateFromDatabase = useAppStore((state) => state.hydrateFromDatabase);
   const updateGoal = useAppStore((state) => state.updateGoal);
   const deleteGoal = useAppStore((state) => state.deleteGoal);
-  const [tab, setTab] = useState<(typeof tabs)[number]>("Vue d’ensemble");
+  const [tab, setTab] = useState<(typeof tabs)[number]>(searchParams.get("tab") === "tasks" ? "Tâches" : "Vue d’ensemble");
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
     status: (goal?.status ?? "active") as Status,
@@ -40,6 +43,13 @@ export function GoalDetailPage({ id }: { id: string }) {
     autonomyLevel: (goal?.autonomyLevel ?? 2) as AutonomyLevel,
     agentIds: goal?.agentIds ?? [],
   });
+  const collaborationEnabled = Boolean(account?.subscription?.features.includes("collaboration"));
+
+  useEffect(() => {
+    if (tab !== "Tâches" || !collaborationEnabled) return;
+    const interval = window.setInterval(() => { void hydrateFromDatabase(); }, 8_000);
+    return () => window.clearInterval(interval);
+  }, [collaborationEnabled, hydrateFromDatabase, tab]);
   const goalActivities = useMemo(() => activities.filter((activity) => activity.tool === `Objectif:${id}`), [activities, id]);
   if (!goal) return notFound();
   const canEdit = hasAccess(account?.accessLevel, "operator");
@@ -91,7 +101,10 @@ export function GoalDetailPage({ id }: { id: string }) {
 
     {tab === "Vue d’ensemble" ? <div className="grid gap-5 xl:grid-cols-[1.3fr_.7fr]"><Card><CardHeader><CardTitle>État d’exécution</CardTitle></CardHeader><CardContent><ExecutionTimeline steps={goal.steps.length ? goal.steps : fallbackSteps} /></CardContent></Card><div className="space-y-5"><Card><CardHeader><CardTitle>Agents impliqués</CardTitle></CardHeader><CardContent className="space-y-3">{goalAgents.length ? goalAgents.map((agent) => <div key={agent.id} className="flex items-center gap-3 rounded-xl border bg-background p-3"><span className="rounded-lg bg-indigo-500/10 p-2 text-indigo-500"><Bot className="size-4" /></span><div className="flex-1"><p className="text-sm font-medium">{agent.name}</p><p className="text-xs text-muted-foreground">{agent.role}</p></div><Badge className={agent.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"}>{agent.enabled ? "Actif" : "Inactif"}</Badge></div>) : <p className="text-sm text-muted-foreground">Aucun agent affecté.</p>}</CardContent></Card><Card><CardHeader><CardTitle>Dernières exécutions</CardTitle></CardHeader><CardContent className="space-y-3">{goal.agentRuns?.length ? goal.agentRuns.slice(-3).reverse().map((run) => <div key={run.id} className="rounded-xl border p-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{run.agentName}</p><ConfidenceIndicator value={run.confidence} compact /></div><p className="mt-2 line-clamp-3 text-xs leading-5 text-muted-foreground">{run.result}</p>{run.approvalId ? <Link href="/approvals" className="mt-2 inline-flex text-xs font-medium text-amber-500">Validation requise</Link> : null}</div>) : <p className="text-sm text-muted-foreground">Aucune mission lancée depuis cet objectif.</p>}</CardContent></Card></div></div> : null}
     {tab === "Plan" ? <Card><CardHeader><CardTitle>Plan et dépendances</CardTitle></CardHeader><CardContent><ExecutionTimeline steps={goal.steps.length ? goal.steps : fallbackSteps} /></CardContent></Card> : null}
-    {tab === "Tâches" ? <Card><CardHeader><CardTitle className="flex items-center gap-2"><ListChecks className="size-4" />Tâches opérationnelles</CardTitle></CardHeader><CardContent className="space-y-3">{tasks.length ? tasks.map((task) => <div key={task.id} className="flex flex-col gap-3 rounded-xl border bg-background p-4 sm:flex-row sm:items-center"><button disabled={!canEdit} onClick={() => void toggleTask(task.stepId, task.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded-full border", task.status === "completed" && "border-emerald-500 bg-emerald-500 text-white")} aria-label={task.status === "completed" ? "Rouvrir la tâche" : "Terminer la tâche"}>{task.status === "completed" ? <CheckCircle2 className="size-4" /> : null}</button><div className="min-w-0 flex-1"><p className={cn("text-sm font-medium", task.status === "completed" && "line-through text-muted-foreground")}>{task.title}</p><p className="mt-1 text-xs text-muted-foreground">{task.stepTitle} · {task.assignee}</p></div><span className="text-xs text-muted-foreground">{new Date(task.dueDate).toLocaleDateString("fr-FR")}</span></div>) : <p className="py-8 text-center text-sm text-muted-foreground">Aucune tâche dans ce plan.</p>}</CardContent></Card> : null}
+    {tab === "Tâches" ? <div className="space-y-4">
+      {collaborationEnabled ? <div className="flex flex-col gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 sm:flex-row sm:items-center"><span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-500"><Crown className="size-5" /></span><div className="flex-1"><p className="text-sm font-semibold">Mode collaboratif Entreprise actif</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Co-affectez les membres, centralisez les échanges et recevez les mises à jour des autres utilisateurs automatiquement.</p></div><Badge className="bg-emerald-500/10 text-emerald-500">Synchronisé</Badge></div> : <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center"><span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Crown className="size-5" /></span><div className="flex-1"><p className="text-sm font-semibold">Travail à plusieurs sur une tâche</p><p className="mt-1 text-xs leading-5 text-muted-foreground">L’offre Entreprise ajoute la co-affectation, un fil de discussion horodaté et la synchronisation automatique entre collaborateurs.</p></div>{account?.accessLevel === "admin" ? <Button asChild size="sm"><Link href="/billing">Découvrir Entreprise</Link></Button> : <Badge className="bg-primary/10 text-primary">Entreprise</Badge>}</div>}
+      <Card><CardHeader><CardTitle className="flex items-center gap-2"><ListChecks className="size-4" />Tâches opérationnelles</CardTitle></CardHeader><CardContent className="space-y-3">{tasks.length ? tasks.map((task) => <div id={`task-${task.id}`} key={task.id} className="scroll-mt-24 flex flex-col gap-3 rounded-xl border bg-background p-4 sm:flex-row sm:items-center"><button disabled={!canEdit} onClick={() => void toggleTask(task.stepId, task.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded-full border", task.status === "completed" && "border-emerald-500 bg-emerald-500 text-white")} aria-label={task.status === "completed" ? "Rouvrir la tâche" : "Terminer la tâche"}>{task.status === "completed" ? <CheckCircle2 className="size-4" /> : null}</button><div className="min-w-0 flex-1"><p className={cn("text-sm font-medium", task.status === "completed" && "line-through text-muted-foreground")}>{task.title}</p><p className="mt-1 text-xs text-muted-foreground">{task.stepTitle} · Agent {task.assignee}</p></div><div className="flex flex-wrap items-center gap-2"><span className="text-xs text-muted-foreground">{new Date(task.dueDate).toLocaleDateString("fr-FR")}</span>{collaborationEnabled ? <TaskCollaborationDialog entityType="goal" entityId={goal.id} taskId={task.id} taskTitle={task.title} canEdit={canEdit} currentUserId={account?.id} accessLevel={account?.accessLevel} /> : null}</div></div>) : <p className="py-8 text-center text-sm text-muted-foreground">Aucune tâche dans ce plan.</p>}</CardContent></Card>
+    </div> : null}
     {tab === "Activité" ? <Card><CardHeader><CardTitle>Journal lié à l’objectif</CardTitle></CardHeader><CardContent className="space-y-3">{goalActivities.length ? goalActivities.slice().reverse().map((activity) => <div key={activity.id} className="rounded-xl border p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{activity.agent} · {activity.action}</p><ConfidenceIndicator value={activity.confidence} compact /></div><p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{activity.details}</p></div>) : <p className="py-8 text-center text-sm text-muted-foreground">Aucune activité enregistrée.</p>}</CardContent></Card> : null}
     {tab === "Documents" ? <Card><CardContent className="flex min-h-64 flex-col items-center justify-center text-center"><FileText className="size-8 text-indigo-500" /><h3 className="mt-4 font-medium">Documents liés</h3><p className="mt-1 max-w-md text-sm text-muted-foreground">{driveConnected ? "Demandez à l’agent Documents de créer un livrable : il apparaîtra dans votre Google Drive après validation." : "Connectez Google Drive pour permettre à l’agent Documents de créer de vrais fichiers."}</p>{canEdit ? <div className="mt-5"><WorkItemAgentDialog entityType="goal" entityId={goal.id} title={goal.title} description={goal.description} linkedAgentIds={["documents"]} /></div> : null}</CardContent></Card> : null}
     {tab === "Mémoire" ? <Card><CardHeader><CardTitle>Mémoire utilisable</CardTitle></CardHeader><CardContent className="space-y-3">{relatedMemories.length ? relatedMemories.map((memory) => <div key={memory.id} className="rounded-xl border p-4"><div className="flex items-center gap-2"><Badge className="bg-violet-500/10 text-violet-500">{memory.type}</Badge><p className="text-sm font-medium">{memory.title}</p></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{memory.content}</p></div>) : <p className="py-8 text-center text-sm text-muted-foreground">Aucun élément de mémoire directement relié. Les agents utilisent uniquement la mémoire non bloquée de l’entreprise.</p>}</CardContent></Card> : null}

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { PRODUCT_NAME, hasAccess, hasFeature, routes } from "@/config";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
+import { AstraMark } from "@/components/shared/astra-mark";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 
 export function Sidebar() {
@@ -14,26 +15,32 @@ export function Sidebar() {
   const displayName = account?.fullName || account?.email.split("@")[0] || "Utilisateur";
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const visibleRoutes = routes.filter((route) => hasAccess(account?.accessLevel, route.minAccess) && hasFeature(account?.subscription?.features, "feature" in route ? route.feature : undefined));
+  const pendingApprovals = approvals.filter((item) => item.status === "pending").length;
+  const activeAgents = agents.filter((agent) => agent.status === "active").length;
 
   return (
-    <aside className={cn("fixed inset-y-0 left-0 z-50 hidden flex-col border-r bg-card/90 backdrop-blur-xl transition-all duration-300 lg:flex", sidebarCollapsed ? "w-[76px]" : "w-[248px]")}>
-      <div className="flex h-16 items-center gap-3 border-b px-4">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 text-white shadow-lg shadow-indigo-500/20"><Sparkles className="size-4" /></span>
-        {!sidebarCollapsed && <div><p className="font-semibold tracking-tight">{PRODUCT_NAME}</p><p className="text-[10px] uppercase tracking-[.18em] text-muted-foreground">Idée → Résultat</p></div>}
+    <aside className={cn("astra-sidebar fixed inset-y-0 left-0 z-50 hidden flex-col overflow-hidden border-r border-white/10 transition-[width] duration-300 lg:flex", sidebarCollapsed ? "w-[80px]" : "w-[264px]")}>
+      <div className="astra-star-field opacity-35" />
+      <div className="relative flex h-[72px] items-center gap-3 border-b border-white/10 px-5">
+        <AstraMark className="size-8 shrink-0" />
+        {!sidebarCollapsed ? <div className="min-w-0"><p className="font-display text-[17px] font-bold tracking-tight text-white">{PRODUCT_NAME}</p><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#9DA6FF]">Idée → Résultat</p></div> : null}
       </div>
-      <div className="p-3">
-        {hasAccess(account?.accessLevel, "operator") ? <Link href="/goals/new" className={cn("flex h-10 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-medium text-primary-foreground shadow-lg shadow-indigo-500/10", sidebarCollapsed ? "px-0" : "px-3")}><Plus className="size-4" />{!sidebarCollapsed && <span>Nouvel objectif</span>}</Link> : null}
+
+      <div className="relative p-3">
+        {hasAccess(account?.accessLevel, "operator") ? <Link href="/goals/new" className={cn("flex h-10 items-center justify-center gap-2 rounded-lg border border-[#8290ff]/25 bg-[#3A4CE0] text-sm font-semibold text-white shadow-[0_14px_32px_-18px_#3A4CE0] transition hover:-translate-y-0.5 hover:bg-[#4658ea]", sidebarCollapsed ? "px-0" : "px-3")}><Plus className="size-4" />{!sidebarCollapsed ? <span>Nouvel objectif</span> : null}</Link> : null}
       </div>
-      <nav className="scrollbar-none flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+
+      <nav className="scrollbar-none relative flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+        {!sidebarCollapsed ? <p className="px-3 pb-2 pt-2 font-mono text-[9px] uppercase tracking-[.18em] text-[#777BA8]">Espace de travail</p> : null}
         {visibleRoutes.map((route) => {
           const active = route.href === "/" ? pathname === "/" : pathname.startsWith(route.href);
-          const pendingApprovals = approvals.filter((item) => item.status === "pending").length;
-          return <Link key={route.href} href={route.href} title={sidebarCollapsed ? route.label : undefined} className={cn("flex h-10 items-center gap-3 rounded-xl px-3 text-sm transition", active ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground", sidebarCollapsed && "justify-center px-0")}><DynamicIcon name={route.icon} className="size-4 shrink-0" />{!sidebarCollapsed && <span>{route.label}</span>}{route.href === "/approvals" && !sidebarCollapsed && pendingApprovals > 0 ? <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-500">{pendingApprovals}</span> : null}</Link>;
+          return <Link key={route.href} href={route.href} title={sidebarCollapsed ? route.label : undefined} className={cn("group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition", active ? "bg-white/[.09] font-medium text-white" : "text-[#AEB1D7] hover:bg-white/[.055] hover:text-white", sidebarCollapsed && "justify-center px-0")}><DynamicIcon name={route.icon} className={cn("size-4 shrink-0 transition", active ? "text-[#AAB4FF]" : "text-[#777BA8] group-hover:text-[#AAB4FF]")} />{!sidebarCollapsed ? <span>{route.label}</span> : null}{active && !sidebarCollapsed ? <span className="absolute left-0 size-1.5 rounded-full bg-[#FF4FA3] shadow-[0_0_12px_#FF4FA3]" /> : null}{route.href === "/approvals" && !sidebarCollapsed && pendingApprovals > 0 ? <span className="ml-auto rounded-full border border-[#FF4FA3]/30 bg-[#FF4FA3]/10 px-2 py-0.5 font-mono text-[9px] font-medium text-[#FFAFD8]">{pendingApprovals}</span> : null}</Link>;
         })}
       </nav>
-      <div className="space-y-2 border-t p-3">
-        <div className={cn("rounded-xl bg-muted/60 p-3", sidebarCollapsed && "flex justify-center p-2")}><div className="flex items-center gap-2"><span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex size-2 rounded-full bg-emerald-500" /></span>{!sidebarCollapsed && <div><p className="text-xs font-medium">Système opérationnel</p><p className="text-[10px] text-muted-foreground">{agents.filter((agent) => agent.status === "active").length} agents actifs</p></div>}</div></div>
-        <div className="flex items-center gap-3 rounded-xl p-2"><Link href="/account" className="flex min-w-0 flex-1 items-center gap-3"><div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-xs font-semibold text-white">{initials}</div>{!sidebarCollapsed && <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{displayName}</p><p className="truncate text-[10px] text-muted-foreground">{account?.workspaceName ?? "Espace de travail"}</p></div>}</Link><button onClick={toggleSidebar} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted" aria-label={sidebarCollapsed ? "Déployer la barre latérale" : "Réduire la barre latérale"}>{sidebarCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}</button></div>
+
+      <div className="relative space-y-2 border-t border-white/10 p-3">
+        <div className={cn("rounded-lg border border-white/10 bg-white/[.045] p-3", sidebarCollapsed && "flex justify-center p-2.5")}><div className="flex items-center gap-2.5"><span className="relative flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-50" /><span className="relative inline-flex size-2 rounded-full bg-emerald-400" /></span>{!sidebarCollapsed ? <div><p className="text-xs font-medium text-white">Système opérationnel</p><p className="font-mono text-[9px] text-[#8589B8]">{activeAgents} agents actifs</p></div> : null}</div></div>
+        <div className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-white/[.04]"><Link href="/account" className="flex min-w-0 flex-1 items-center gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#3A4CE0] to-[#6E42D9] text-[10px] font-semibold text-white">{initials}</span>{!sidebarCollapsed ? <span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium text-white">{displayName}</span><span className="block truncate font-mono text-[9px] text-[#8589B8]">{account?.workspaceName ?? "Espace de travail"}</span></span> : null}</Link><button type="button" onClick={toggleSidebar} className="rounded-md p-1.5 text-[#8589B8] hover:bg-white/[.08] hover:text-white" aria-label={sidebarCollapsed ? "Déployer la barre latérale" : "Réduire la barre latérale"}>{sidebarCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}</button></div>
       </div>
     </aside>
   );

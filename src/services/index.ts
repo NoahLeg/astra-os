@@ -1,4 +1,4 @@
-import type { AccountProfile, ActivityEvent, AgentExecution, AppNotification, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
+import type { AccessLevel, AccountProfile, ActivityEvent, AgentExecution, AppNotification, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, EnterpriseQuoteRequest, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, TaskCollaborationOverview, TaskEntityType, TeamOverview, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
 import { apiClient, simulate } from "./api-client";
 
 type Collection = keyof WorkspaceData;
@@ -140,6 +140,32 @@ export const billingService = {
     body: JSON.stringify({ planId, returnTo }),
   })).data,
   portal: async () => (await apiClient<{ url: string }>("/api/billing/portal", { method: "POST" })).data,
+  requestEnterpriseQuote: async (input: { contactName: string; contactEmail: string; companyName: string; seatCount: number; estimatedMonthlyCalls: number; message?: string }) => (await apiClient<{ quote: EnterpriseQuoteRequest }>("/api/billing/enterprise-quote", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })).data.quote,
+};
+
+export const teamService = {
+  load: async () => (await apiClient<TeamOverview>("/api/team", { cache: "no-store" })).data,
+  invite: async (input: { email: string; fullName: string; accessLevel: AccessLevel }) => (await apiClient<TeamOverview>("/api/team", { method: "POST", body: JSON.stringify({ action: "invite", ...input }) })).data,
+  updateAccess: async (userId: string, nextAccessLevel: AccessLevel) => (await apiClient<TeamOverview>("/api/team", { method: "POST", body: JSON.stringify({ action: "update_access", userId, accessLevel: nextAccessLevel }) })).data,
+  updateStatus: async (userId: string, status: "active" | "suspended") => (await apiClient<TeamOverview>("/api/team", { method: "POST", body: JSON.stringify({ action: "update_status", userId, status }) })).data,
+  remove: async (userId: string) => (await apiClient<TeamOverview>("/api/team", { method: "POST", body: JSON.stringify({ action: "remove", userId }) })).data,
+};
+
+type TaskCollaborationKey = { entityType: TaskEntityType; entityId: string; taskId: string };
+
+function taskCollaborationPath(key: TaskCollaborationKey) {
+  const query = new URLSearchParams(key);
+  return `/api/task-collaboration?${query.toString()}`;
+}
+
+export const taskCollaborationService = {
+  load: async (key: TaskCollaborationKey) => (await apiClient<TaskCollaborationOverview>(taskCollaborationPath(key), { cache: "no-store" })).data,
+  setCollaborators: async (key: TaskCollaborationKey, userIds: string[]) => (await apiClient<TaskCollaborationOverview>("/api/task-collaboration", { method: "POST", body: JSON.stringify({ action: "set_collaborators", ...key, userIds }) })).data,
+  addComment: async (key: TaskCollaborationKey, body: string) => (await apiClient<TaskCollaborationOverview>("/api/task-collaboration", { method: "POST", body: JSON.stringify({ action: "add_comment", ...key, body }) })).data,
+  deleteComment: async (key: TaskCollaborationKey, commentId: string) => (await apiClient<TaskCollaborationOverview>("/api/task-collaboration", { method: "POST", body: JSON.stringify({ action: "delete_comment", ...key, commentId }) })).data,
 };
 
 export const settingsService = {

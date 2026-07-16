@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { z } from "zod";
 import { writeAdminAuditLog } from "@/lib/server/admin-service";
 import { requireSuperAdmin } from "@/lib/server/auth";
-import { getStripePriceId, getWorkspaceBillingIdentifiers, getWorkspaceSubscriptionByWorkspaceId, resetWorkspaceApiUsage, updateWorkspaceSubscriptionFromStripe } from "@/lib/server/billing";
+import { getStripePriceId, getSubscriptionPlans, getWorkspaceBillingIdentifiers, getWorkspaceSubscriptionByWorkspaceId, resetWorkspaceApiUsage, updateEnterpriseQuoteStatus, updateWorkspaceMemberLimit, updateWorkspaceSubscriptionFromStripe } from "@/lib/server/billing";
 import { getStripeClient } from "@/lib/server/stripe";
 import type { SubscriptionPlan, SubscriptionStatus } from "@/types";
 
@@ -11,9 +11,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const schema = z.discriminatedUnion("action", [
-  z.object({ workspaceId: z.uuid(), action: z.literal("change_plan"), planId: z.enum(["free", "starter", "pro", "business"]) }),
+  z.object({ workspaceId: z.uuid(), action: z.literal("change_plan"), planId: z.enum(["free", "starter", "pro", "business", "enterprise"]) }),
   z.object({ workspaceId: z.uuid(), action: z.literal("reactivate") }),
   z.object({ workspaceId: z.uuid(), action: z.literal("reset_usage") }),
+  z.object({ workspaceId: z.uuid(), action: z.literal("set_member_limit"), maxMembers: z.number().int().min(2).max(10_000) }),
+  z.object({ workspaceId: z.uuid(), action: z.literal("update_quote_status"), quoteId: z.uuid(), status: z.enum(["pending", "contacted", "approved", "declined"]) }),
 ]);
 
 function normalizeStatus(status: Stripe.Subscription.Status): SubscriptionStatus {
@@ -51,6 +53,18 @@ export async function POST(request: Request) {
     const subscription = await getWorkspaceSubscriptionByWorkspaceId(parsed.data.workspaceId);
     const identifiers = await getWorkspaceBillingIdentifiers(parsed.data.workspaceId);
 
+    if (parsed.data.action === "update_quote_status") {
+      await updateEnterpriseQuoteStatus(parsed.data.workspaceId, parsed.data.quoteId, parsed.data.status);
+      await writeAdminAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: admin.id, action: "enterprise_quote.status_changed", targetType: "enterprise_quote", targetId: parsed.data.quoteId, metadata: { status: parsed.data.status } });
+      return NextResponse.json({ message: "Statut du devis mis à jour." });
+    }
+
+    if (parsed.data.action === "set_member_limit") {
+      await updateWorkspaceMemberLimit(parsed.data.workspaceId, parsed.data.maxMembers);
+      await writeAdminAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: admin.id, action: "subscription.member_limit_changed", targetType: "workspace_subscription", targetId: parsed.data.workspaceId, metadata: { maxMembers: parsed.data.maxMembers } });
+      return NextResponse.json({ message: `Limite contractuelle portée à ${parsed.data.maxMembers} sièges.` });
+    }
+
     if (parsed.data.action === "reset_usage") {
       await resetWorkspaceApiUsage(parsed.data.workspaceId);
       await writeAdminAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: admin.id, action: "subscription.usage_reset", targetType: "workspace_subscription", targetId: parsed.data.workspaceId });
@@ -66,7 +80,12 @@ export async function POST(request: Request) {
     }
 
     const targetPlan = parsed.data.planId;
+    const targetDefinition = getSubscriptionPlans().find((plan) => plan.id === targetPlan);
+    if (targetDefinition && subscription.memberCount > targetDefinition.maxMembers) {
+      return NextResponse.json({ error: `Cette offre autorise ${targetDefinition.maxMembers} siège${targetDefinition.maxMembers > 1 ? "s" : ""}. Suspendez d’abord les membres excédentaires.` }, { status: 409 });
+    }
     if (identifiers.stripe_subscription_id) {
+      if (targetPlan === "enterprise") return NextResponse.json({ error: "Résiliez ou terminez d’abord l’abonnement Stripe avant d’activer un contrat Entreprise manuel." }, { status: 409 });
       const stripe = getStripeClient();
       if (targetPlan === "free") {
         const updated = await stripe.subscriptions.update(identifiers.stripe_subscription_id, { cancel_at_period_end: true });

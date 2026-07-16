@@ -1,9 +1,10 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { subscriptionPlans } from "@/config";
 import { getWorkspaceIdForUser, isSupabaseDatabaseEnabled, serverDatabaseRequest } from "@/lib/server/database";
 import { getStripeClient } from "@/lib/server/stripe";
-import type { Agent, BillingInvoice, FeatureKey, SubscriptionPlan, SubscriptionStatus, WorkspaceSubscription } from "@/types";
+import type { Agent, BillingInvoice, EnterpriseQuoteRequest, EnterpriseQuoteStatus, FeatureKey, SubscriptionPlan, SubscriptionStatus, WorkspaceSubscription } from "@/types";
 
 interface SubscriptionRow {
   workspace_id: string;
@@ -18,6 +19,7 @@ interface SubscriptionRow {
   api_usage_reset_at: string;
   api_usage_daily: number;
   api_usage_day: string;
+  member_limit_override?: number;
 }
 
 type WorkspaceBillingIdentifiers = Pick<
@@ -45,7 +47,8 @@ function stripeConfiguredPlans(): SubscriptionPlan["id"][] {
   ];
 }
 
-function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan): WorkspaceSubscription {
+function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan, memberCount: number): WorkspaceSubscription {
+  const maxMembers = plan.id === "enterprise" ? row.member_limit_override ?? plan.maxMembers : plan.maxMembers;
   return {
     workspaceId: row.workspace_id,
     planId: plan.id,
@@ -57,12 +60,15 @@ function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan): 
     dailyApiLimit: plan.dailyApiLimit,
     minuteApiLimit: plan.minuteApiLimit,
     maxAgents: plan.maxAgents,
+    memberCount,
+    maxMembers,
     usageResetAt: row.api_usage_reset_at,
     currentPeriodEnd: row.current_period_end,
     cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
     onboardingCompleted: Boolean(row.onboarding_completed_at),
     managedByStripe: Boolean(row.stripe_customer_id && row.stripe_subscription_id),
     features: plan.features,
+    quoteOnly: Boolean(plan.quoteOnly),
     stripeConfigured: stripeConfiguredPlans().length > 0,
     stripeConfiguredPlans: stripeConfiguredPlans(),
   };
@@ -81,11 +87,14 @@ function localSubscription(): WorkspaceSubscription {
     dailyApiLimit: plan.dailyApiLimit,
     minuteApiLimit: plan.minuteApiLimit,
     maxAgents: plan.maxAgents,
+    memberCount: 1,
+    maxMembers: plan.maxMembers,
     usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(),
     cancelAtPeriodEnd: false,
     onboardingCompleted: true,
     managedByStripe: false,
     features: plan.features,
+    quoteOnly: Boolean(plan.quoteOnly),
     stripeConfigured: stripeConfiguredPlans().length > 0,
     stripeConfiguredPlans: stripeConfiguredPlans(),
   };
@@ -98,7 +107,7 @@ export function getSubscriptionPlans() {
 export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string): Promise<WorkspaceSubscription> {
   if (!isSupabaseDatabaseEnabled() || workspaceId === "local") return localSubscription();
   let rows = await serverDatabaseRequest<SubscriptionRow[]>(
-    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day&limit=1`,
+    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day,member_limit_override&limit=1`,
   );
   if (!rows[0]) {
     await serverDatabaseRequest("workspace_subscriptions?on_conflict=workspace_id", {
@@ -107,12 +116,15 @@ export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string)
       body: JSON.stringify({ workspace_id: workspaceId, plan_id: "free", status: "active" }),
     });
     rows = await serverDatabaseRequest<SubscriptionRow[]>(
-      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day&limit=1`,
+      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day,member_limit_override&limit=1`,
     );
   }
   const row = rows[0];
   if (!row) throw new BillingAccessError("Abonnement introuvable pour cet espace.", 404);
-  return toWorkspaceSubscription(row, planById(row.plan_id));
+  const members = await serverDatabaseRequest<Array<{ user_id: string }>>(
+    `workspace_members?workspace_id=eq.${encodeURIComponent(workspaceId)}&status=eq.active&select=user_id`,
+  );
+  return toWorkspaceSubscription(row, planById(row.plan_id), members.length);
 }
 
 export async function getWorkspaceSubscription(userId: string) {
@@ -153,6 +165,17 @@ export async function resetWorkspaceApiUsage(workspaceId: string) {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ api_usage: 0, api_usage_reset_at: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(), api_usage_daily: 0, api_usage_day: new Date().toISOString().slice(0, 10), api_usage_minute: 0, api_usage_minute_started_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+  });
+}
+
+export async function updateWorkspaceMemberLimit(workspaceId: string, maxMembers: number) {
+  const subscription = await getWorkspaceSubscriptionByWorkspaceId(workspaceId);
+  if (subscription.planId !== "enterprise") throw new BillingAccessError("La limite contractuelle de sièges est réservée à l’offre Entreprise.", 409);
+  if (maxMembers < subscription.memberCount) throw new BillingAccessError(`Cette entreprise compte déjà ${subscription.memberCount} membre${subscription.memberCount > 1 ? "s" : ""} actif${subscription.memberCount > 1 ? "s" : ""}.`, 409);
+  await serverDatabaseRequest(`workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ member_limit_override: maxMembers, updated_at: new Date().toISOString() }),
   });
 }
 
@@ -214,6 +237,43 @@ export async function findWorkspaceIdByStripeSubscriptionId(subscriptionId: stri
   return rows[0]?.workspace_id;
 }
 
+async function suspendMembersAbovePlanLimit(workspaceId: string, plan: SubscriptionPlan) {
+  if (!isSupabaseDatabaseEnabled()) return;
+  const members = await serverDatabaseRequest<Array<{ user_id: string; role: string; created_at: string }>>(
+    `workspace_members?workspace_id=eq.${encodeURIComponent(workspaceId)}&status=eq.active&select=user_id,role,created_at&order=created_at.asc`,
+  );
+  if (members.length <= plan.maxMembers) return;
+
+  const orderedMembers = [...members].sort((left, right) => {
+    if (left.role === "owner") return -1;
+    if (right.role === "owner") return 1;
+    return left.created_at.localeCompare(right.created_at);
+  });
+  const suspendedUserIds = orderedMembers.slice(plan.maxMembers).map((member) => member.user_id);
+  if (!suspendedUserIds.length) return;
+
+  await serverDatabaseRequest(
+    `workspace_members?workspace_id=eq.${encodeURIComponent(workspaceId)}&user_id=in.(${suspendedUserIds.join(",")})`,
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "suspended", updated_at: new Date().toISOString() }),
+    },
+  );
+  await serverDatabaseRequest("audit_logs", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      workspace_id: workspaceId,
+      actor_user_id: null,
+      action: "subscription.excess_members_suspended",
+      target_type: "workspace_subscription",
+      target_id: workspaceId,
+      metadata: { planId: plan.id, maxMembers: plan.maxMembers, suspendedUserIds },
+    }),
+  });
+}
+
 export async function updateWorkspaceSubscriptionFromStripe(input: {
   workspaceId: string;
   planId: SubscriptionPlan["id"];
@@ -224,6 +284,8 @@ export async function updateWorkspaceSubscriptionFromStripe(input: {
   cancelAtPeriodEnd?: boolean;
   onboardingCompleted?: boolean;
 }) {
+  const targetPlan = planById(input.planId);
+  await suspendMembersAbovePlanLimit(input.workspaceId, targetPlan);
   await serverDatabaseRequest("workspace_subscriptions?on_conflict=workspace_id", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -235,8 +297,91 @@ export async function updateWorkspaceSubscriptionFromStripe(input: {
       stripe_subscription_id: input.subscriptionId ?? null,
       current_period_end: input.currentPeriodEnd ?? null,
       cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
+      ...(input.planId === "enterprise" ? {} : { member_limit_override: null }),
       ...(input.onboardingCompleted ? { onboarding_completed_at: new Date().toISOString() } : {}),
       updated_at: new Date().toISOString(),
     }),
+  });
+}
+
+type EnterpriseQuoteInput = {
+  workspaceId: string;
+  requestedBy: string;
+  contactName: string;
+  contactEmail: string;
+  companyName: string;
+  seatCount: number;
+  estimatedMonthlyCalls: number;
+  message?: string;
+};
+
+type EnterpriseQuoteRow = {
+  id: string;
+  workspace_id: string;
+  requested_by: string;
+  contact_name: string;
+  contact_email: string;
+  company_name: string;
+  seat_count: number;
+  estimated_monthly_calls: number;
+  message?: string;
+  status: EnterpriseQuoteStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+function toEnterpriseQuote(row: EnterpriseQuoteRow): EnterpriseQuoteRequest {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    requestedBy: row.requested_by,
+    contactName: row.contact_name,
+    contactEmail: row.contact_email,
+    companyName: row.company_name,
+    seatCount: row.seat_count,
+    estimatedMonthlyCalls: row.estimated_monthly_calls,
+    message: row.message,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function createEnterpriseQuoteRequest(input: EnterpriseQuoteInput): Promise<EnterpriseQuoteRequest> {
+  if (!isSupabaseDatabaseEnabled()) {
+    const now = new Date().toISOString();
+    return { id: randomUUID(), ...input, status: "pending", createdAt: now, updatedAt: now };
+  }
+  const rows = await serverDatabaseRequest<EnterpriseQuoteRow[]>("enterprise_quote_requests", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      workspace_id: input.workspaceId,
+      requested_by: input.requestedBy,
+      contact_name: input.contactName,
+      contact_email: input.contactEmail,
+      company_name: input.companyName,
+      seat_count: input.seatCount,
+      estimated_monthly_calls: input.estimatedMonthlyCalls,
+      message: input.message || null,
+    }),
+  });
+  if (!rows[0]) throw new Error("La demande de devis n’a pas pu être enregistrée.");
+  return toEnterpriseQuote(rows[0]);
+}
+
+export async function listEnterpriseQuoteRequests(workspaceId: string): Promise<EnterpriseQuoteRequest[]> {
+  if (!isSupabaseDatabaseEnabled()) return [];
+  const rows = await serverDatabaseRequest<EnterpriseQuoteRow[]>(
+    `enterprise_quote_requests?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=id,workspace_id,requested_by,contact_name,contact_email,company_name,seat_count,estimated_monthly_calls,message,status,created_at,updated_at&order=created_at.desc`,
+  );
+  return rows.map(toEnterpriseQuote);
+}
+
+export async function updateEnterpriseQuoteStatus(workspaceId: string, quoteId: string, status: EnterpriseQuoteStatus) {
+  await serverDatabaseRequest(`enterprise_quote_requests?workspace_id=eq.${encodeURIComponent(workspaceId)}&id=eq.${encodeURIComponent(quoteId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
   });
 }

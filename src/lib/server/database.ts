@@ -94,7 +94,7 @@ async function seedSupabase(workspaceId: string) {
 
 let localDatabase: DatabaseSync | undefined;
 
-function getLocalDatabase() {
+export function getLocalDatabase() {
   if (process.env.VERCEL) throw new Error("Supabase doit être configuré sur Vercel : le système de fichiers serverless n’est pas une base persistante.");
   if (localDatabase) return localDatabase;
   const databasePath = process.env.ASTRA_DB_PATH ?? path.join(process.cwd(), "data", "astra-os.sqlite");
@@ -109,6 +109,29 @@ function getLocalDatabase() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (collection, id)
     );
+    CREATE TABLE IF NOT EXISTS task_collaborators (
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      assigned_by TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (entity_type, entity_id, task_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS task_comments (
+      id TEXT PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      author_id TEXT,
+      author_name TEXT NOT NULL,
+      author_email TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS task_comments_lookup_idx
+      ON task_comments(entity_type, entity_id, task_id, created_at);
   `);
   const count = localDatabase.prepare("SELECT COUNT(*) AS count FROM workspace_records").get() as { count: number };
   if (count.count === 0) {

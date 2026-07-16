@@ -4,6 +4,7 @@ import { getAuthenticatedUser } from "@/lib/server/auth";
 import { getWorkspaceSubscription } from "@/lib/server/billing";
 import { getAccountProfile, getWorkspaceData, updateAccountProfile } from "@/lib/server/database";
 import { buildNotifications } from "@/lib/server/notifications";
+import { listTaskCollaborationNotifications } from "@/lib/server/task-collaboration";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,14 @@ async function loadNotificationData(userId: string, email: string) {
     getAccountProfile(userId, email),
   ]);
   if (!profile) throw new Error("Profil introuvable");
-  const notifications = buildNotifications(workspace, subscription, profile.preferences.readNotificationIds);
+  const baseNotifications = buildNotifications(workspace, subscription, profile.preferences.readNotificationIds);
+  const collaborationNotifications = subscription.features.includes("collaboration")
+    ? await listTaskCollaborationNotifications(subscription.workspaceId, userId, workspace)
+    : [];
+  const readIds = new Set(profile.preferences.readNotificationIds);
+  const notifications = [...baseNotifications, ...collaborationNotifications.map((notification) => ({ ...notification, read: readIds.has(notification.id) }))]
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .slice(0, 80);
   return { workspace, subscription, profile, notifications };
 }
 

@@ -5,7 +5,7 @@ export type AutonomyLevel = 0 | 1 | 2 | 3 | 4;
 export type AccessLevel = "viewer" | "operator" | "admin";
 export type AccountStatus = "active" | "suspended";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid";
-export type FeatureKey = "assistant" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin";
+export type FeatureKey = "assistant" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin" | "collaboration";
 export type AgentToolName = "send_email" | "create_email_draft" | "organize_email" | "create_calendar_event" | "create_drive_file";
 export type AccentColor = "indigo" | "cyan" | "violet" | "emerald" | "rose";
 export type InterfaceDensity = "comfortable" | "compact";
@@ -43,7 +43,7 @@ export interface AccountPreferences {
 }
 
 export interface SubscriptionPlan {
-  id: "free" | "starter" | "pro" | "business";
+  id: "free" | "starter" | "pro" | "business" | "enterprise";
   name: string;
   description: string;
   monthlyPriceCents: number;
@@ -51,8 +51,10 @@ export interface SubscriptionPlan {
   dailyApiLimit: number;
   minuteApiLimit: number;
   maxAgents: number;
+  maxMembers: number;
   features: FeatureKey[];
   highlighted?: boolean;
+  quoteOnly?: boolean;
 }
 
 export interface WorkspaceSubscription {
@@ -66,14 +68,75 @@ export interface WorkspaceSubscription {
   dailyApiLimit: number;
   minuteApiLimit: number;
   maxAgents: number;
+  memberCount: number;
+  maxMembers: number;
   usageResetAt: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;
   onboardingCompleted: boolean;
   managedByStripe: boolean;
   features: FeatureKey[];
+  quoteOnly: boolean;
   stripeConfigured: boolean;
   stripeConfiguredPlans: SubscriptionPlan["id"][];
+}
+
+export type EnterpriseQuoteStatus = "pending" | "contacted" | "approved" | "declined";
+
+export interface EnterpriseQuoteRequest {
+  id: string;
+  workspaceId: string;
+  requestedBy: string;
+  contactName: string;
+  contactEmail: string;
+  companyName: string;
+  seatCount: number;
+  estimatedMonthlyCalls: number;
+  message?: string;
+  status: EnterpriseQuoteStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamMember {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+  accessLevel: AccessLevel;
+  status: AccountStatus;
+  joinedAt: string;
+  isOwner: boolean;
+}
+
+export interface TeamOverview {
+  members: TeamMember[];
+  memberCount: number;
+  maxMembers: number;
+  planId: SubscriptionPlan["id"];
+}
+
+export type TaskEntityType = "goal";
+
+export interface TaskCollaborationComment {
+  id: string;
+  authorId?: string;
+  authorName: string;
+  authorEmail: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaskCollaborationOverview {
+  entityType: TaskEntityType;
+  entityId: string;
+  taskId: string;
+  taskTitle: string;
+  collaborators: TeamMember[];
+  availableMembers: TeamMember[];
+  comments: TaskCollaborationComment[];
+  updatedAt: string;
 }
 
 export interface BillingInvoice {
@@ -213,7 +276,7 @@ export interface AppNotification {
   id: string;
   title: string;
   description: string;
-  category: "approval" | "error" | "success" | "quota";
+  category: "approval" | "error" | "success" | "quota" | "collaboration";
   createdAt: string;
   href: string;
   read: boolean;

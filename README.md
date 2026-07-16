@@ -139,12 +139,14 @@ Pour déplacer la base, définissez `ASTRA_DB_PATH` avec un chemin accessible un
 En présence de `SUPABASE_URL` et `SUPABASE_SECRET_KEY`, la couche serveur utilise automatiquement Supabase à la place de SQLite. La clé secrète ne doit jamais utiliser le préfixe `NEXT_PUBLIC_`.
 
 1. créer un projet Supabase ;
-2. ouvrir le SQL Editor et exécuter `supabase/migrations/202607150001_create_workspace_records.sql` ;
+2. appliquer tous les fichiers de `supabase/migrations/` dans l’ordre chronologique, ou exécuter `supabase db push` après avoir lié le projet ;
 3. récupérer l’URL du projet, la clé publiable `sb_publishable_...` et une clé serveur `sb_secret_...` dans Settings → API Keys ;
 4. définir `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` et `SUPABASE_SECRET_KEY` dans `.env.local` ;
 5. relancer `npm run dev` : les données initiales seront insérées automatiquement si la table est vide.
 
 La table active RLS et retire l’accès aux rôles `anon` et `authenticated`. Seules les routes serveur disposant de la clé secrète peuvent lire ou modifier les données.
+
+Pour une base déjà créée, appliquez dans l’ordre `supabase/migrations/20260716142615_add_enterprise_plan_and_team_seats.sql`, puis `supabase/migrations/20260716150605_add_enterprise_task_collaboration.sql` avant de déployer cette version. Elles ajoutent les sièges, les demandes de devis, le contrôle de capacité et les espaces collaboratifs par tâche.
 
 ### Authentification et multi-entreprises
 
@@ -305,10 +307,11 @@ L’activation des agents, les connexions OAuth et les préférences de notifica
 
 La page `/billing` applique les limites de chaque offre :
 
-- **Free** — assistant, objectifs et mémoire, 50 appels/mois, 10/jour et 3/minute ;
-- **Starter (19 €/mois)** — connecteurs, automatisations, 2 agents, 500 appels/mois, 50/jour et 10/minute ;
-- **Pro (49 €/mois)** — jusqu’à 5 agents, 2 000 appels/mois, 150/jour et 30/minute ;
-- **Business (149 €/mois)** — orchestration multi-agents, administration, 10 agents, 8 000 appels/mois, 500/jour et 60/minute.
+- **Free** — assistant, objectifs et mémoire, 1 membre, 50 appels/mois, 10/jour et 3/minute ;
+- **Starter (19 €/mois)** — connecteurs, automatisations, 1 membre, 2 agents, 500 appels/mois, 50/jour et 10/minute ;
+- **Pro (49 €/mois)** — 3 membres, jusqu’à 5 agents, 2 000 appels/mois, 150/jour et 30/minute ;
+- **Business (149 €/mois)** — 10 membres, orchestration multi-agents, administration, 10 agents, 8 000 appels/mois, 500/jour et 60/minute ;
+- **Entreprise (sur devis)** — 50 sièges par défaut, ajustables par contrat, 25 agents, 50 000 appels/mois et collaboration multi-membres sur chaque tâche.
 
 1. dans Stripe, créez trois produits récurrents mensuels : Starter, Pro et Business ;
 2. copiez leurs identifiants de prix (`price_...`) dans `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO` et `STRIPE_PRICE_BUSINESS` ;
@@ -320,6 +323,14 @@ La page `/billing` applique les limites de chaque offre :
 Le webhook est exempté du contrôle de session, mais sa signature Stripe est vérifiée avant toute mise à jour de l’abonnement. Sans les variables Stripe, l’offre Free reste disponible et seuls les boutons des prix Stripe manquants sont désactivés.
 
 Après la première connexion, les nouveaux administrateurs passent par `/onboarding/subscription` et choisissent explicitement Free ou une offre payante. Les comptes existants ne sont pas redirigés à nouveau. La page `/account` présente ensuite le plan, la prochaine échéance, les quotas et les factures Stripe. La console `/admin` permet au Super Admin de changer une offre, programmer un retour à Free, annuler une résiliation et réinitialiser le quota API ; chaque action est journalisée.
+
+Le plan Entreprise ne lance jamais Stripe depuis le navigateur. Un administrateur envoie une demande structurée depuis `/billing` ou l’onboarding ; le Super Admin la traite dans `/admin`, active ensuite le contrat Entreprise et définit le nombre exact de sièges. L’onglet **Équipe** de `/account` permet aux administrateurs Business ou Entreprise d’inviter des membres et d’attribuer les niveaux Lecture, Opérateur ou Administrateur. Les invitations Supabase sont émises exclusivement côté serveur avec `SUPABASE_SECRET_KEY`.
+
+Dans **Objectif → Tâches**, les espaces Entreprise peuvent co-affecter plusieurs membres à une même tâche, conserver un fil de discussion horodaté et recevoir des notifications d’affectation ou de nouveau message. La vue ouverte se resynchronise automatiquement toutes les cinq secondes, tandis que les changements de statut des tâches sont rechargés depuis la base toutes les huit secondes.
+
+Les tables `task_collaborators` et `task_comments` restent inaccessibles aux rôles publics Supabase : la route authentifiée `/api/task-collaboration` vérifie l’entreprise, le plan et le niveau d’accès avant chaque lecture ou mutation. Cette architecture peut ensuite être remplacée par des canaux Supabase Realtime privés sans exposer `SUPABASE_SECRET_KEY` au navigateur.
+
+Un changement manuel vers une offre contenant moins de sièges est refusé tant que des membres excédentaires restent actifs. Si une résiliation arrive directement depuis Stripe, Astra conserve les comptes mais suspend automatiquement les adhésions les plus récentes au-delà de la nouvelle limite ; le propriétaire reste toujours actif.
 
 Les limites mensuelles, quotidiennes et par minute sont contrôlées dans une fonction PostgreSQL atomique. Elles ne dépendent donc pas d’un compteur manipulable dans le navigateur. Le nombre d’agents actifs est également contrôlé côté serveur selon l’offre.
 

@@ -42,6 +42,7 @@ export const featureLabels: Record<FeatureKey, string> = {
   automations: "Automatisations",
   multi_agent: "Orchestration multi-agents",
   team_admin: "Gestion avancée des équipes",
+  collaboration: "Collaboration multi-membres sur les tâches",
 };
 
 export const subscriptionPlans: SubscriptionPlan[] = [
@@ -54,6 +55,7 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     dailyApiLimit: 10,
     minuteApiLimit: 3,
     maxAgents: 0,
+    maxMembers: 1,
     features: ["assistant", "goals", "memory"],
   },
   {
@@ -65,6 +67,7 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     dailyApiLimit: 50,
     minuteApiLimit: 10,
     maxAgents: 2,
+    maxMembers: 1,
     features: ["assistant", "goals", "memory", "agents", "connectors", "automations"],
   },
   {
@@ -76,6 +79,7 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     dailyApiLimit: 150,
     minuteApiLimit: 30,
     maxAgents: 5,
+    maxMembers: 3,
     features: ["assistant", "goals", "memory", "agents", "connectors", "automations"],
     highlighted: true,
   },
@@ -88,7 +92,21 @@ export const subscriptionPlans: SubscriptionPlan[] = [
     dailyApiLimit: 500,
     minuteApiLimit: 60,
     maxAgents: 10,
+    maxMembers: 10,
+      features: ["assistant", "goals", "memory", "agents", "connectors", "automations", "multi_agent", "team_admin", "collaboration"],
+  },
+  {
+    id: "enterprise",
+    name: "Entreprise",
+    description: "Pour déployer Astra à l’échelle d’une organisation avec des sièges et quotas contractuels.",
+    monthlyPriceCents: 0,
+    apiLimit: 50_000,
+    dailyApiLimit: 3_000,
+    minuteApiLimit: 180,
+    maxAgents: 25,
+    maxMembers: 50,
     features: ["assistant", "goals", "memory", "agents", "connectors", "automations", "multi_agent", "team_admin"],
+    quoteOnly: true,
   },
 ];
 

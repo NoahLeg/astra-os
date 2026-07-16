@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Plus, Sparkles, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import { AstraMark } from "@/components/shared/astra-mark";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Button } from "@/components/ui/button";
 import { PRODUCT_NAME, hasAccess, hasFeature, routes } from "@/config";
@@ -35,24 +36,13 @@ export function MobileSidebar() {
   const pendingApprovals = approvals.filter((item) => item.status === "pending").length;
   return (
     <div className="fixed inset-0 z-[75] lg:hidden">
-      <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} aria-label="Fermer la navigation" />
-      <aside role="dialog" aria-modal="true" aria-label="Navigation principale" className="relative flex h-full w-[min(88vw,320px)] flex-col border-r bg-card shadow-2xl">
-        <div className="flex h-16 items-center gap-3 border-b px-4">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 text-white"><Sparkles className="size-4" /></span>
-          <div className="min-w-0 flex-1"><p className="font-semibold">{PRODUCT_NAME}</p><p className="text-[10px] uppercase tracking-[.18em] text-muted-foreground">Idée → Résultat</p></div>
-          <Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(false)} aria-label="Fermer"><X className="size-5" /></Button>
-        </div>
-        <div className="p-3">{hasAccess(account?.accessLevel, "operator") ? <Link href="/goals/new" className="flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-sm font-medium text-primary-foreground"><Plus className="size-4" />Nouvel objectif</Link> : null}</div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-          {visibleRoutes.map((route) => {
-            const active = route.href === "/" ? pathname === "/" : pathname.startsWith(route.href);
-            return <Link key={route.href} href={route.href} className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm ${active ? "bg-accent font-medium text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><DynamicIcon name={route.icon} className="size-4" /><span className="flex-1">{route.label}</span>{route.href === "/approvals" && pendingApprovals ? <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-500">{pendingApprovals}</span> : null}</Link>;
-          })}
-        </nav>
-        <div className="space-y-2 border-t p-3">
-          <div className="flex items-center gap-2 rounded-xl bg-muted/60 p-3"><span className="size-2 rounded-full bg-emerald-500" /><div><p className="text-xs font-medium">Système opérationnel</p><p className="text-[10px] text-muted-foreground">{agents.filter((agent) => agent.status === "active").length} agents actifs</p></div></div>
-          <Link href="/account" className="flex items-center gap-3 rounded-xl p-2 hover:bg-muted"><span className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-xs font-semibold text-white">{initials}</span><span className="min-w-0"><span className="block truncate text-xs font-medium">{displayName}</span><span className="block truncate text-[10px] text-muted-foreground">{account?.workspaceName ?? "Espace de travail"}</span></span></Link>
-        </div>
+      <button type="button" className="absolute inset-0 bg-[#06070F]/75 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} aria-label="Fermer la navigation" />
+      <aside role="dialog" aria-modal="true" aria-label="Navigation principale" className="astra-sidebar relative flex h-full w-[min(88vw,320px)] flex-col overflow-hidden border-r border-white/10 shadow-2xl">
+        <div className="astra-star-field opacity-35" />
+        <div className="relative flex h-[72px] items-center gap-3 border-b border-white/10 px-4"><AstraMark className="size-8" /><div className="min-w-0 flex-1"><p className="font-display font-bold text-white">{PRODUCT_NAME}</p><p className="font-mono text-[9px] uppercase tracking-[.18em] text-[#9DA6FF]">Idée → Résultat</p></div><Button variant="ghost" size="icon" className="text-[#AFB2DE] hover:bg-white/10 hover:text-white" onClick={() => setMobileSidebarOpen(false)} aria-label="Fermer"><X className="size-5" /></Button></div>
+        <div className="relative p-3">{hasAccess(account?.accessLevel, "operator") ? <Link href="/goals/new" className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#3A4CE0] px-3 text-sm font-semibold text-white"><Plus className="size-4" />Nouvel objectif</Link> : null}</div>
+        <nav className="relative flex-1 space-y-1 overflow-y-auto px-3 pb-4">{visibleRoutes.map((route) => { const active = route.href === "/" ? pathname === "/" : pathname.startsWith(route.href); return <Link key={route.href} href={route.href} className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm ${active ? "bg-white/[.09] font-medium text-white" : "text-[#AEB1D7] hover:bg-white/[.055] hover:text-white"}`}><DynamicIcon name={route.icon} className={active ? "size-4 text-[#AAB4FF]" : "size-4 text-[#777BA8]"} /><span className="flex-1">{route.label}</span>{route.href === "/approvals" && pendingApprovals ? <span className="rounded-full bg-[#FF4FA3]/15 px-2 py-0.5 font-mono text-[9px] font-medium text-[#FFAFD8]">{pendingApprovals}</span> : null}</Link>; })}</nav>
+        <div className="relative space-y-2 border-t border-white/10 p-3"><div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[.04] p-3"><span className="size-2 rounded-full bg-emerald-400" /><div><p className="text-xs font-medium text-white">Système opérationnel</p><p className="font-mono text-[9px] text-[#8589B8]">{agents.filter((agent) => agent.status === "active").length} agents actifs</p></div></div><Link href="/account" className="flex items-center gap-3 rounded-lg p-2 hover:bg-white/[.05]"><span className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#3A4CE0] to-[#6E42D9] text-xs font-semibold text-white">{initials}</span><span className="min-w-0"><span className="block truncate text-xs font-medium text-white">{displayName}</span><span className="block truncate font-mono text-[9px] text-[#8589B8]">{account?.workspaceName ?? "Espace de travail"}</span></span></Link></div>
       </aside>
     </div>
   );

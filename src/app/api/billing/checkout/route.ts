@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { getStripePriceId, getWorkspaceBillingIdentifiers, getWorkspaceSubscription, updateWorkspaceSubscriptionFromStripe } from "@/lib/server/billing";
+import { getStripePriceId, getSubscriptionPlans, getWorkspaceBillingIdentifiers, getWorkspaceSubscription, updateWorkspaceSubscriptionFromStripe } from "@/lib/server/billing";
 import { hasWorkspaceAccess } from "@/lib/server/database";
 import { getStripeClient } from "@/lib/server/stripe";
 
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
-  planId: z.enum(["free", "starter", "pro", "business"]),
+  planId: z.enum(["free", "starter", "pro", "business", "enterprise"]),
   returnTo: z.enum(["billing", "onboarding"]).default("billing"),
 });
 
@@ -21,9 +21,14 @@ export async function POST(request: Request) {
   if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: "Origine non autorisée" }, { status: 403 });
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Offre invalide" }, { status: 400 });
+  if (parsed.data.planId === "enterprise") return NextResponse.json({ error: "L’offre Entreprise est disponible uniquement sur devis." }, { status: 400 });
 
   try {
     const subscription = await getWorkspaceSubscription(user.id);
+    const targetPlan = getSubscriptionPlans().find((plan) => plan.id === parsed.data.planId);
+    if (targetPlan && subscription.memberCount > targetPlan.maxMembers) {
+      return NextResponse.json({ error: `Cette offre autorise ${targetPlan.maxMembers} siège${targetPlan.maxMembers > 1 ? "s" : ""}. Suspendez d’abord les membres excédentaires.` }, { status: 409 });
+    }
     const identifiers = await getWorkspaceBillingIdentifiers(subscription.workspaceId);
     const returnPath = parsed.data.returnTo === "onboarding" ? "/onboarding/subscription" : "/billing";
     const returnUrl = `${new URL(request.url).origin}${returnPath}`;
