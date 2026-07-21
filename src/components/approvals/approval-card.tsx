@@ -20,6 +20,11 @@ function toolPreview(approval: ApprovalRequest) {
     const input = approval.toolCall.arguments;
     return `${input.title}\n${input.startAt} → ${input.endAt}\nParticipants : ${input.attendees.join(", ") || "aucun"}`;
   }
+  if (approval.toolCall.tool === "smart_organize_gmail") {
+    return approval.toolCall.arguments.operations
+      .map((operation) => `${operation.labelPath} : ${operation.messageIds.length} message(s) — ${operation.reason}`)
+      .join("\n");
+  }
   return `${approval.toolCall.arguments.name} (${approval.toolCall.arguments.mimeType})\n\n${approval.toolCall.arguments.content}`;
 }
 

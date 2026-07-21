@@ -1,6 +1,6 @@
 # Astra OS — AI Operating System
 
-Astra OS est une première version front-end d’un système d’exploitation pour le travail numérique. L’utilisateur exprime un objectif, le Coordinateur analyse le contexte, construit un plan, délègue aux agents et conserve une validation humaine pour les décisions sensibles.
+Astra OS est une V1 SaaS multi-entreprises d’un système d’exploitation pour le travail numérique. L’utilisateur exprime un objectif, le Coordinateur analyse le contexte persistant, construit un plan, délègue aux agents et conserve une validation humaine pour les décisions sensibles.
 
 > **Principe produit :** Idée → Résultat
 
@@ -10,28 +10,32 @@ Astra OS est une première version front-end d’un système d’exploitation po
 - création guidée d’un objectif en six étapes ;
 - plans éditables avec étapes, tâches, risques, confiance, outils et agents ;
 - vues détaillées des objectifs et projets ;
-- centre d’activité compatible avec une future source WebSocket/SSE ;
-- agents activables, permissions, statistiques, outils et journaux ;
-- mémoire en graphe et tableau, modifiable et désactivable ;
-- constructeur visuel d’automatisations compatible avec une future conversion n8n ;
-- connexions simulées et connecteurs API/webhook personnalisés ;
+- centre d’activité alimenté par les exécutions persistées, avec adaptateur de souscription remplaçable par WebSocket/SSE ;
+- agents activables avec permissions serveur, outils Google Workspace, métriques et journaux ;
+- mémoire persistante en graphe et tableau, injectée dans les prompts après chaque redémarrage ;
+- automatisations exécutables, validées, idempotentes, réessayables et journalisées étape par étape ;
+- assistant Gmail capable de catégoriser, hiérarchiser les libellés, archiver, marquer, placer en spam ou supprimer par lots raisonnés ;
+- chatbots personnalisables avec modèle, prompt système, connaissances et conversations persistantes ;
+- Gmail, Calendar, Drive et webhook n8n réellement connectés côté serveur ;
 - centre de validations avec autorisation groupée limitée aux faibles risques ;
 - matrice de permissions, niveaux d’autonomie et modèles IA ;
 - assistant Coordinateur, recherche globale et palette `Ctrl + K` ;
-- thème sombre/clair, responsive, toasts et persistance SQLite côté serveur.
+- comptage réel des tokens d’entrée, cache, sortie et raisonnement, coût par requête et coût cumulé ;
+- authentification Supabase, isolation par entreprise, abonnements Stripe, administration et interface responsive.
 
 ## Stack
 
 - Next.js 16 App Router, React 19, TypeScript strict ;
 - Tailwind CSS 4 et composants shadcn/ui adaptés au produit ;
-- Zustand pour l’état client synchronisé avec SQLite ;
-- TanStack Query pour la future couche réseau ;
+- Zustand pour l’état client synchronisé avec la couche de services ;
+- Supabase/PostgreSQL en production et SQLite pour la démonstration locale ;
+- TanStack Query et un client HTTP typé ;
 - React Hook Form + Zod ;
 - Recharts, Lucide React et Sonner.
 
 ## Installation
 
-Prérequis : Node.js 22.5+ et npm 10+. Le projet utilise l’API SQLite native de Node.js.
+Prérequis : Node.js 24.x et npm 11.x. Le projet utilise l’API SQLite native de Node.js en local.
 
 ```bash
 npm install
@@ -62,7 +66,6 @@ npm run start
 ```env
 NEXT_PUBLIC_API_URL=
 NEXT_PUBLIC_WS_URL=
-NEXT_PUBLIC_N8N_WEBHOOK_URL=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ASTRA_DB_PATH=./data/astra-os.sqlite
 SUPABASE_URL=
@@ -72,6 +75,9 @@ SUPER_ADMIN_EMAILS=admin@votre-domaine.fr
 SECRETS_ENCRYPTION_KEY=
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.4-mini
+CRON_SECRET=
+N8N_WEBHOOK_URL=
+N8N_WEBHOOK_BEARER_TOKEN=
 ANTHROPIC_API_KEY=
 GOOGLE_GENERATIVE_AI_API_KEY=
 GOOGLE_CLIENT_ID=
@@ -95,6 +101,7 @@ src/
     agents/[id]/
     approvals/
     automations/
+    chatbots/
     connections/
     goals/[id]/
     goals/new/
@@ -107,6 +114,7 @@ src/
     approvals/               # ApprovalCard et centre de validation
     assistant/               # assistant Coordinateur
     automations/             # workflows visuels
+    chatbots/                # constructeur et conversations
     connections/             # intégrations et formulaires sécurisés
     dashboard/               # tableau de bord
     goals/                   # objectifs, wizard et détail
@@ -117,18 +125,19 @@ src/
     shared/                  # indicateurs, timeline, modal, empty state
     ui/                      # primitives UI de style shadcn
   config/                    # routes, modèles, autonomie, actions sensibles
-  lib/                       # utilitaires et accès SQLite serveur
-  mocks/                     # jeu d’initialisation de la base
+  lib/server/                # auth, Supabase, IA, outils et moteurs serveur
+  mocks/                     # jeu de démonstration SQLite uniquement
   services/                  # services HTTP et client API
   stores/                    # store Zustand synchronisé avec l’API
-  types/                     # types métier TypeScript
+  types/                     # contrats métier TypeScript
+supabase/migrations/         # schéma, RLS, RPC atomiques et index
 ```
 
-## Base de données locale
+## Persistance des données
 
 Le scénario central est le projet **« Service d’automatisation PME »**, avec les objectifs, agents, actions, décisions, validations et événements associés.
 
-Les données initiales de `src/mocks/data.ts` servent uniquement à initialiser SQLite lors du premier lancement. Ensuite, l’application lit et écrit dans `data/astra-os.sqlite` via `src/app/api/workspace/route.ts` et `src/lib/server/database.ts`.
+Les données de `src/mocks/data.ts` initialisent uniquement SQLite lors du premier lancement local. Ensuite, l’application lit et écrit dans `data/astra-os.sqlite` via `src/app/api/workspace/route.ts` et `src/lib/server/database.ts`. Elles ne sont jamais injectées dans une nouvelle entreprise Supabase : celle-ci démarre avec des statistiques à zéro, des agents désactivés et des listes métier vides.
 
 Les créations d’objectifs et d’automatisations, les validations, l’état des agents, la mémoire et les connexions sont persistés dans cette base. Pour repartir du jeu initial, arrêtez le serveur puis supprimez `data/astra-os.sqlite`.
 
@@ -142,11 +151,27 @@ En présence de `SUPABASE_URL` et `SUPABASE_SECRET_KEY`, la couche serveur utili
 2. appliquer tous les fichiers de `supabase/migrations/` dans l’ordre chronologique, ou exécuter `supabase db push` après avoir lié le projet ;
 3. récupérer l’URL du projet, la clé publiable `sb_publishable_...` et une clé serveur `sb_secret_...` dans Settings → API Keys ;
 4. définir `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` et `SUPABASE_SECRET_KEY` dans `.env.local` ;
-5. relancer `npm run dev` : les données initiales seront insérées automatiquement si la table est vide.
+5. relancer `npm run dev` : les agents et connecteurs disponibles sont initialisés sans fausse activité ni faux résultat.
 
 La table active RLS et retire l’accès aux rôles `anon` et `authenticated`. Seules les routes serveur disposant de la clé secrète peuvent lire ou modifier les données.
 
-Pour une base déjà créée, appliquez dans l’ordre `supabase/migrations/20260716142615_add_enterprise_plan_and_team_seats.sql`, puis `supabase/migrations/20260716150605_add_enterprise_task_collaboration.sql` avant de déployer cette version. Elles ajoutent les sièges, les demandes de devis, le contrôle de capacité et les espaces collaboratifs par tâche.
+Pour une base déjà créée, vérifiez l’historique puis appliquez toutes les migrations locales manquantes, notamment `20260721145324_add_production_ai_usage_automations_chatbots.sql` :
+
+```bash
+npx supabase migration list
+npx supabase db push --dry-run
+npx supabase db push
+```
+
+La dernière migration ajoute les quotas en tokens, le catalogue tarifaire versionné, les réservations atomiques, les événements d’usage, les chatbots, les conversations, les connaissances, les exécutions d’automatisation et les verrous d’idempotence des outils.
+
+### Tokens et coûts réels
+
+Chaque appel OpenAI passe par `src/lib/server/openai.ts`. Le serveur demande l’usage à l’API, puis conserve dans `ai_usage_events` : tokens d’entrée, entrée mise en cache, sortie, raisonnement, total, identifiant fournisseur, modèle et ventilation du coût en nano-USD. Aucun compteur n’est incrémenté dans le navigateur.
+
+Le coût est calculé avec le tarif actif de `model_pricing`. Les règles sont versionnées par date et supportent les variantes de modèle ainsi que les multiplicateurs de contexte long. Un modèle sans tarif actif reste visible avec l’état `unpriced` au lieu d’afficher un coût inventé. Il faut mettre à jour ce catalogue lorsque le fournisseur modifie ses prix.
+
+Avant l’appel, PostgreSQL réserve atomiquement une enveloppe de tokens afin d’éviter le dépassement en cas de requêtes concurrentes. La réservation est libérée en cas d’échec fournisseur, puis remplacée par l’usage exact en cas de succès. Les limites mensuelle, quotidienne, par minute et le budget mensuel en USD configuré dans `/settings?section=budget` sont contrôlés côté serveur.
 
 ### Authentification et multi-entreprises
 
@@ -212,6 +237,8 @@ vercel env add SUPABASE_URL production
 vercel env add SUPABASE_PUBLISHABLE_KEY production
 vercel env add SUPABASE_SECRET_KEY production
 vercel env add OPENAI_API_KEY production
+vercel env add CRON_SECRET production
+vercel env add N8N_WEBHOOK_URL production
 vercel env add STRIPE_SECRET_KEY production
 vercel env add STRIPE_WEBHOOK_SECRET production
 vercel env add STRIPE_PRICE_STARTER production
@@ -269,7 +296,9 @@ Ces trois connecteurs partagent un vrai flux OAuth 2.0 Google Workspace côté s
 8. définir `GOOGLE_REDIRECT_URI` uniquement si vous voulez imposer explicitement une URL de callback ;
 9. redémarrer Next.js puis cliquer sur **Autoriser avec Google** dans `/connections`.
 
-L’autorisation couvre Gmail en lecture, brouillons, classement et envoi, ainsi que Calendar et Drive. Après le premier consentement hors ligne, les agents et automatisations réutilisent le refresh token serveur : il n’est pas nécessaire de reconnecter Google à chaque visite. Après une mise à jour des scopes, cliquez une fois sur **Réautoriser** pour obtenir les nouvelles permissions.
+L’autorisation Gmail utilise `gmail.modify`, qui couvre la lecture, les brouillons, l’envoi et la modification des libellés et messages, avec des scopes distincts pour Calendar et Drive. Après le premier consentement hors ligne, les agents et automatisations réutilisent le refresh token serveur : il n’est pas nécessaire de reconnecter Google à chaque visite. Après une mise à jour des scopes, cliquez une fois sur **Réautoriser** pour obtenir les nouvelles permissions.
+
+Le callback vérifie les scopes accordés et teste réellement les trois API avant d’enregistrer le refresh token. Si un test échoue, aucun connecteur n’est marqué comme connecté. L’agent Gmail limite son analyse à un lot borné, traite le contenu reçu comme non fiable, produit un plan structuré puis exécute plusieurs opérations validées : création de hiérarchies `Astra/...`, classement, archivage, lecture, importance, spam et corbeille.
 
 Pendant les tests, ajoutez les adresses Gmail autorisées dans la liste des utilisateurs de test de l’écran de consentement Google. En production, les scopes sensibles Gmail peuvent nécessiter une validation Google.
 
@@ -277,19 +306,25 @@ Les autres cartes ne simulent plus de connexion. Elles restent en état **Config
 
 ## Connecter n8n
 
-`sendGoalToN8n(goal)` est disponible dans `src/services/index.ts`.
+`sendGoalToN8n(goal)` appelle la route authentifiée `/api/integrations/n8n/goals`. Le navigateur ne connaît ni l’URL du webhook ni son jeton.
 
-Pour une démonstration locale, définir `NEXT_PUBLIC_N8N_WEBHOOK_URL`. Pour la production, ne pas appeler n8n directement depuis le navigateur :
+1. créer un webhook de production dans n8n ;
+2. définir son URL HTTPS dans `N8N_WEBHOOK_URL` côté serveur ;
+3. définir facultativement `N8N_WEBHOOK_BEARER_TOKEN` et vérifier ce jeton dans le workflow n8n ;
+4. redéployer l’application ;
+5. appeler `sendGoalToN8n(goal)` depuis une action produit.
 
-1. créer une Route Handler `src/app/api/n8n/goals/route.ts` ;
-2. stocker l’URL privée et la signature dans `N8N_WEBHOOK_URL` et `N8N_WEBHOOK_SECRET` côté serveur ;
-3. authentifier l’utilisateur ;
-4. valider le payload avec Zod ;
-5. journaliser l’action et ajouter un identifiant d’idempotence ;
-6. appeler n8n depuis la Route Handler ;
-7. renvoyer uniquement un statut public au navigateur.
+La route vérifie la session, le rôle opérateur, l’origine et le payload Zod, ajoute l’entreprise, l’acteur, l’heure et un identifiant d’événement, applique un timeout puis journalise le succès ou l’échec dans le centre d’activité. En production, les URL HTTP sont refusées.
 
 Le constructeur d’automatisation expose des nœuds `trigger`, `condition`, `agent`, `action`, `approval` et `result`. Ils peuvent être convertis en JSON n8n par un adaptateur serveur dédié.
+
+## Automatisations de production
+
+Le moteur `src/lib/server/automation-engine.ts` valide l’ordre et l’unicité des nœuds, évalue les conditions, vérifie le plan, l’agent, ses permissions, le connecteur et l’outil, puis exécute l’action réelle. Chaque exécution possède une clé d’idempotence, un état, une tentative, des étapes, des logs, des tokens, un coût et un message d’erreur stable.
+
+Les erreurs transitoires de modèle sont réessayées selon `retryPolicy`. Une action sensible ou insuffisamment autonome crée une validation ; son autorisation reprend ensuite l’outil correspondant sans répéter la réflexion IA. Les appels externes utilisent un verrou `tool_execution_claims` : après une réponse réseau ambiguë, une répétition automatique est bloquée pour éviter un double email ou un double événement.
+
+La route `/api/cron/automations` exige `CRON_SECRET` hors infrastructure Vercel Cron et traite les automatisations arrivées à échéance. `vercel.json` déclenche actuellement le moteur chaque jour à 06:00 UTC. Pour des horaires plus fins, appelez cette route plus fréquemment depuis Vercel Cron ou un ordonnanceur externe ; le moteur ne relance que les workflows réellement dus.
 
 ## Agents et missions multi-agents
 
@@ -303,15 +338,23 @@ Chaque automatisation persistante contient désormais un `agentId`, une consigne
 
 L’activation des agents, les connexions OAuth et les préférences de notifications sont persistées dans Supabase. Le centre de notifications de la barre supérieure agrège les validations, erreurs, exécutions et alertes de quota ; son état lu/non lu est conservé par utilisateur. La navigation mobile utilise un tiroir, des actions tactiles et des vues défilantes pour les paramètres et les tableaux larges.
 
+## Chatbots, mémoire et contexte
+
+La page `/chatbots` permet de créer plusieurs assistants par entreprise. Chacun possède un modèle activé dans les paramètres, un prompt système, un état, des connaissances privées et plusieurs conversations. Les messages et leur événement d’usage sont persistés dans Supabase ; recharger ou redémarrer l’application ne supprime pas l’historique.
+
+Avant chaque réponse, le serveur reconstruit le contexte à partir de l’historique borné de la conversation, des connaissances du chatbot et des éléments de mémoire autorisés. `buildMemoryContext` ignore les éléments bloqués, les classe par pertinence et confiance, puis les encadre comme données non fiables afin qu’ils ne puissent pas remplacer le prompt système. Désactiver la mémoire dans les paramètres empêche immédiatement son injection.
+
+L’écriture, la modification, le blocage et la suppression de mémoire attendent la confirmation de la base avant d’afficher un succès. Les politiques RLS interdisent l’accès public aux tables des chatbots et de l’usage ; toutes les lectures passent par une route authentifiée et l’entreprise active.
+
 ## Abonnements Stripe
 
 La page `/billing` applique les limites de chaque offre :
 
-- **Free** — assistant, objectifs et mémoire, 1 membre, 50 appels/mois, 10/jour et 3/minute ;
-- **Starter (19 €/mois)** — connecteurs, automatisations, 1 membre, 2 agents, 500 appels/mois, 50/jour et 10/minute ;
-- **Pro (49 €/mois)** — 3 membres, jusqu’à 5 agents, 2 000 appels/mois, 150/jour et 30/minute ;
-- **Business (149 €/mois)** — 10 membres, orchestration multi-agents, administration, 10 agents, 8 000 appels/mois, 500/jour et 60/minute ;
-- **Entreprise (sur devis)** — 50 sièges par défaut, ajustables par contrat, 25 agents, 50 000 appels/mois et collaboration multi-membres sur chaque tâche.
+- **Free** — assistant, chatbots, objectifs et mémoire, 1 membre, 100 000 tokens/mois, 25 000/jour et 3 requêtes/minute ;
+- **Starter (19 €/mois)** — connecteurs, automatisations, 1 membre, 2 agents, 1 000 000 tokens/mois, 150 000/jour et 10 requêtes/minute ;
+- **Pro (49 €/mois)** — 3 membres, 5 agents, 5 000 000 tokens/mois, 500 000/jour et 30 requêtes/minute ;
+- **Business (149 €/mois)** — 10 membres, orchestration et collaboration, 10 agents, 20 000 000 tokens/mois, 2 000 000/jour et 60 requêtes/minute ;
+- **Entreprise (sur devis)** — 50 sièges par défaut, ajustables par contrat, 25 agents, 100 000 000 tokens/mois, 10 000 000/jour et 180 requêtes/minute.
 
 1. dans Stripe, créez trois produits récurrents mensuels : Starter, Pro et Business ;
 2. copiez leurs identifiants de prix (`price_...`) dans `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_PRO` et `STRIPE_PRICE_BUSINESS` ;
@@ -322,7 +365,7 @@ La page `/billing` applique les limites de chaque offre :
 
 Le webhook est exempté du contrôle de session, mais sa signature Stripe est vérifiée avant toute mise à jour de l’abonnement. Sans les variables Stripe, l’offre Free reste disponible et seuls les boutons des prix Stripe manquants sont désactivés.
 
-Après la première connexion, les nouveaux administrateurs passent par `/onboarding/subscription` et choisissent explicitement Free ou une offre payante. Les comptes existants ne sont pas redirigés à nouveau. La page `/account` présente ensuite le plan, la prochaine échéance, les quotas et les factures Stripe. La console `/admin` permet au Super Admin de changer une offre, programmer un retour à Free, annuler une résiliation et réinitialiser le quota API ; chaque action est journalisée.
+Après la première connexion, les nouveaux administrateurs passent par `/onboarding/subscription` et choisissent explicitement Free ou une offre payante. Les comptes existants ne sont pas redirigés à nouveau. La page `/account` présente ensuite le plan, la prochaine échéance, les tokens, le coût fournisseur cumulé et les factures Stripe. La console `/admin` permet au Super Admin de changer une offre, programmer un retour à Free, annuler une résiliation et réinitialiser l’usage IA ; chaque action est journalisée.
 
 Le plan Entreprise ne lance jamais Stripe depuis le navigateur. Un administrateur envoie une demande structurée depuis `/billing` ou l’onboarding ; le Super Admin la traite dans `/admin`, active ensuite le contrat Entreprise et définit le nombre exact de sièges. L’onglet **Équipe** de `/account` permet aux administrateurs Business ou Entreprise d’inviter des membres et d’attribuer les niveaux Lecture, Opérateur ou Administrateur. Les invitations Supabase sont émises exclusivement côté serveur avec `SUPABASE_SECRET_KEY`.
 
@@ -336,30 +379,23 @@ Les limites mensuelles, quotidiennes et par minute sont contrôlées dans une fo
 
 ## WebSocket ou SSE
 
-La simulation est encapsulée dans `activityService.subscribe`. Pour une source réelle :
+`activityService.subscribe` interroge actuellement les événements persistés toutes les huit secondes avec déduplication. Pour passer au temps réel sans modifier les pages :
 
 - **WebSocket :** utiliser `NEXT_PUBLIC_WS_URL`, authentifier la connexion avec un jeton court et gérer reconnexion/heartbeat ;
 - **SSE :** créer un `EventSource` vers une route authentifiée et convertir les événements vers `ActivityEvent` ;
 - conserver le même contrat de désabonnement afin que `ActivityPage` ne change pas.
 
-## Authentification
+## Contrôle d’accès
 
-Ajouter l’authentification dans :
-
-- `src/app/layout.tsx` ou un layout de groupe `(authenticated)` pour la session ;
-- `src/middleware.ts` ou `src/proxy.ts` selon la stratégie Next.js retenue ;
-- les Route Handlers serveur pour les vérifications d’autorisation ;
-- `apiClient` pour injecter un token court si le backend est externe.
-
-Ne jamais utiliser la présence d’un bouton masqué comme contrôle d’autorisation. Les permissions doivent être revérifiées côté serveur.
+Supabase Auth fournit la session, `src/proxy.ts` protège la navigation et chaque Route Handler revérifie le JWT puis le niveau `viewer`, `operator` ou `admin`. Les contrôles d’interface ne remplacent jamais cette autorisation serveur. Si un backend externe est ajouté, transmettez uniquement un jeton court via `apiClient` et refaites les mêmes contrôles côté API.
 
 ## Ajouter un agent
 
-1. ajouter sa configuration dans `src/mocks/data.ts` ou dans la table backend `agents` ;
+1. ajouter sa configuration dans `src/mocks/data.ts` pour la démonstration locale et dans l’initialisation `tenantSeedData` pour les nouvelles entreprises ;
 2. ajouter ses permissions typées avec `Permission` ;
 3. déclarer ses outils et son modèle ;
-4. ajouter son exécuteur côté backend ;
-5. journaliser chaque appel d’outil avec un `ToolExecution` ;
+4. ajouter son exécuteur dans `src/lib/server/agent-runtime.ts` et ses outils dans `src/lib/server/agent-tools.ts` ;
+5. journaliser chaque appel d’outil et utiliser un verrou d’idempotence pour toute écriture externe ;
 6. appliquer la validation obligatoire aux actions sensibles.
 
 L’icône peut être le nom d’une icône Lucide supportée par `DynamicIcon`.
@@ -375,29 +411,32 @@ L’icône peut être le nom d’une icône Lucide supportée par `DynamicIcon`.
 
 ## Sécurité
 
-- formulaires sensibles validés avec Zod côté client **et à revalider côté serveur** ;
+- formulaires et sorties structurées sensibles revalidés avec Zod côté serveur ;
 - clés masquées dans l’interface et jamais enregistrées dans le store ;
 - validation humaine permanente pour suppression, envoi, publication et achat ;
 - aucune utilisation de HTML non sécurisé ;
 - toutes les actions importantes ont un contexte, un agent, un modèle, un risque et une confiance ;
-- les secrets fournisseurs doivent rester côté serveur ;
-- ajouter CSRF, rate limiting, signature des webhooks et idempotence lors du raccord backend.
+- secrets fournisseurs, OAuth et webhooks conservés exclusivement côté serveur ;
+- contrôles d’origine sur les mutations, quotas PostgreSQL atomiques, signature Stripe et idempotence des outils ;
+- payloads externes considérés comme non fiables et jamais injectés comme instructions système.
+
+Pour un service public, complétez ces protections applicatives par le pare-feu Vercel, une limitation de débit sur les routes non-IA, une politique de sauvegarde Supabase, la rotation des secrets, une surveillance des erreurs et la procédure de validation Google des scopes sensibles.
 
 ## Validation technique
 
-La V1 a été validée avec :
+Avant chaque déploiement, exécuter :
 
 - TypeScript strict : `tsc --noEmit` ;
 - ESLint : aucune erreur ni avertissement ;
-- build Next.js 16.2.10 : 14 routes compilées et prérendues avec succès.
+- build Next.js 16.2.10 : `npm run build` ;
+- cohérence des migrations : `npx supabase migration list` puis `npx supabase db push --dry-run` ;
+- vérification du diff : `git diff --check`.
 
 ## Étapes backend recommandées
 
-1. authentification et organisations ;
-2. PostgreSQL pour projets, objectifs, tâches, décisions et audits ;
-3. file de tâches et exécuteurs d’agents ;
-4. stockage chiffré des connexions ;
-5. WebSocket/SSE pour l’activité ;
-6. mémoire vectorielle avec politique de rétention ;
-7. webhooks n8n signés ;
-8. observabilité, budget, retries et annulation.
+1. ajouter une file durable pour les workflows qui dépassent la durée maximale d’une fonction Vercel ;
+2. remplacer le polling d’activité par Supabase Realtime, WebSocket ou SSE privé ;
+3. ajouter une recherche vectorielle pour les volumes importants de mémoire et de connaissances ;
+4. signer les webhooks n8n avec une signature HMAC en plus du bearer token ;
+5. brancher une observabilité centralisée, des alertes de budget et des sauvegardes testées ;
+6. ajouter les flux OAuth serveur des connecteurs encore marqués « Configuration requise ».

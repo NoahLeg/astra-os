@@ -12,7 +12,7 @@ const quoteSchema = z.object({
   contactEmail: z.email(),
   companyName: z.string().trim().min(2).max(120),
   seatCount: z.number().int().min(2).max(10_000),
-  estimatedMonthlyCalls: z.number().int().min(1_000).max(10_000_000),
+  estimatedMonthlyTokens: z.number().int().min(100_000).max(10_000_000_000),
   message: z.string().trim().max(2_000).optional(),
 });
 

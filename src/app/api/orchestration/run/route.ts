@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildMemoryContext, createToolApproval, generateAgentTask } from "@/lib/server/agent-runtime";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { BillingAccessError, consumeApiUsage } from "@/lib/server/billing";
+import { BillingAccessError } from "@/lib/server/billing";
 import { getWorkspaceConfiguration, getWorkspaceData, hasWorkspaceAccess, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
 import { createOpenAIResponse, getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 import type { ActivityEvent, MissionAgentResult, MultiAgentMission } from "@/types";
@@ -47,7 +47,6 @@ export async function POST(request: Request) {
     const disabledAgent = agents.find((agent) => !agent.enabled);
     if (disabledAgent) return NextResponse.json({ error: `Activez l'agent ${disabledAgent.name} avant de lancer la mission.` }, { status: 409 });
 
-    await consumeApiUsage(user.id, "multi_agent", agents.length + 2);
     const configuration = await getOpenAIConfiguration(user.id);
     const initialMission: MultiAgentMission = {
       id: missionId,
@@ -67,11 +66,12 @@ export async function POST(request: Request) {
     missionCreated = true;
 
     const allowedAgentIds = agents.map((agent) => agent.id);
-    const plannerContent = await createOpenAIResponse({
+    const plannerResponse = await createOpenAIResponse({
       ...configuration,
       instructions: "Tu es le Coordinateur Astra. Construis une délégation concise en français. Chaque agent sélectionné doit recevoir exactement une instruction autonome, concrète et adaptée à son rôle. N'affirme aucune exécution.",
       prompt: `Objectif : ${parsed.data.objective}\nAgents disponibles :\n${agents.map((agent) => `- ${agent.id}: ${agent.name}, ${agent.role} — ${agent.description}`).join("\n")}`,
       maxOutputTokens: 1_500,
+      tracking: { userId: user.id, feature: "multi_agent", metadata: { missionId, stage: "plan" } },
       text: {
         format: {
           type: "json_schema",
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
         },
       },
     });
-    const proposedPlan = planResultSchema.parse(JSON.parse(plannerContent));
+    const proposedPlan = planResultSchema.parse(JSON.parse(plannerResponse.content));
     const instructionByAgent = new Map(proposedPlan.steps.map((step) => [step.agentId, step.instruction]));
     const plan = agents.map((agent) => ({
       agentId: agent.id,
@@ -111,12 +111,12 @@ export async function POST(request: Request) {
     }));
     await patchWorkspaceRecord("missions", missionId, { title: proposedPlan.title, summary: proposedPlan.summary, plan, progress: 20 }, user.id);
 
-    const memoryContext = buildMemoryContext(workspace, Boolean(workspaceConfiguration?.settings.memoryEnabled));
+    const memoryContext = buildMemoryContext(workspace, Boolean(workspaceConfiguration?.settings.memoryEnabled), parsed.data.objective);
     const delegated = await Promise.all(plan.map(async (step) => {
       const agent = agents.find((item) => item.id === step.agentId)!;
       const startedAt = Date.now();
       try {
-        const taskResult = await generateAgentTask({ userId: user.id, agent, instruction: step.instruction, workspace, memoryContext, configuration });
+        const taskResult = await generateAgentTask({ userId: user.id, agent, instruction: step.instruction, workspace, memoryContext, configuration, feature: "multi_agent" });
         const approval = createToolApproval({
           agent,
           instruction: step.instruction,
@@ -173,12 +173,14 @@ export async function POST(request: Request) {
     await patchWorkspaceRecord("missions", missionId, { results: delegated, approvalIds, progress: 80 }, user.id);
 
     const synthesisInput = delegated.map((result) => `## ${result.agentName} (${result.status}, ${result.confidence} %)\n${result.result}`).join("\n\n").slice(0, 35_000);
-    const finalResult = await createOpenAIResponse({
+    const finalResponse = await createOpenAIResponse({
       ...configuration,
       instructions: "Tu es le Coordinateur Astra. Synthétise en français les contributions en un résultat exploitable. Distingue les résultats disponibles, les incertitudes et les actions externes encore en attente de validation. Ne prétends pas qu'une action en attente a été exécutée.",
       prompt: `Mission : ${proposedPlan.title}\nObjectif : ${parsed.data.objective}\n\nContributions :\n${synthesisInput}`,
       maxOutputTokens: 2_200,
+      tracking: { userId: user.id, feature: "multi_agent", metadata: { missionId, stage: "synthesis" } },
     });
+    const finalResult = finalResponse.content;
     const completedAt = new Date().toISOString();
     const completedMission: MultiAgentMission = {
       ...initialMission,

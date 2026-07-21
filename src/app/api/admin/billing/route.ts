@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     if (parsed.data.action === "reset_usage") {
       await resetWorkspaceApiUsage(parsed.data.workspaceId);
       await writeAdminAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: admin.id, action: "subscription.usage_reset", targetType: "workspace_subscription", targetId: parsed.data.workspaceId });
-      return NextResponse.json({ message: "Quota API remis à zéro." });
+      return NextResponse.json({ message: "Tokens et coût IA remis à zéro." });
     }
 
     if (parsed.data.action === "reactivate") {

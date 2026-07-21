@@ -1,5 +1,5 @@
-import type { AccessLevel, AccountProfile, ActivityEvent, AgentExecution, AppNotification, ApprovalRequest, Automation, AutomationExecution, BillingOverview, Connection, EnterpriseQuoteRequest, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, TaskCollaborationOverview, TaskEntityType, TeamOverview, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
-import { apiClient, simulate } from "./api-client";
+import type { AccessLevel, AccountProfile, ActivityEvent, AgentExecution, AppNotification, ApprovalRequest, Automation, AutomationExecution, AutomationRun, BillingOverview, Chatbot, ChatbotConversation, ChatbotKnowledge, ChatbotMessage, Connection, EnterpriseQuoteRequest, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, TaskCollaborationOverview, TaskEntityType, TeamOverview, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
+import { apiClient } from "./api-client";
 
 type Collection = keyof WorkspaceData;
 
@@ -73,9 +73,10 @@ export const automationService = {
   delete: (id: string) => workspaceService.delete("automations", id),
   run: async (automationId: string) => (await apiClient<AutomationExecution>("/api/automations/run", {
     method: "POST",
-    body: JSON.stringify({ automationId }),
-    timeout: 65_000,
+    body: JSON.stringify({ automationId, idempotencyKey: `manual:${crypto.randomUUID()}` }),
+    timeout: 125_000,
   })).data,
+  runs: async (automationId?: string) => (await apiClient<{ runs: AutomationRun[] }>(`/api/automations/run${automationId ? `?automationId=${encodeURIComponent(automationId)}` : ""}`, { cache: "no-store" })).data.runs,
 };
 export const approvalService = { list: async () => (await workspaceService.load()).approvals } satisfies { list: () => Promise<ApprovalRequest[]> };
 export const connectionService = { list: async () => (await workspaceService.load()).connections } satisfies { list: () => Promise<Connection[]> };
@@ -116,13 +117,27 @@ export const notificationService = {
 };
 
 export const assistantService = {
-  send: async (message: string) => (
-    await apiClient<{ content: string; model: string }>("/api/assistant", {
+  load: async (conversationId?: string) => (await apiClient<{ chatbot: Chatbot; conversation: ChatbotConversation; messages: ChatbotMessage[] }>(`/api/assistant${conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : ""}`, { cache: "no-store" })).data,
+  send: async (message: string, conversationId?: string) => (
+    await apiClient<{ content: string; model: string; usage?: ChatbotMessage["usage"]; conversation: ChatbotConversation; message: ChatbotMessage }>("/api/assistant", {
       method: "POST",
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, conversationId }),
       timeout: 65_000,
     })
   ).data,
+};
+
+export const chatbotService = {
+  list: async () => (await apiClient<{ chatbots: Chatbot[] }>("/api/chatbots", { cache: "no-store" })).data.chatbots,
+  create: async (input: Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled">) => (await apiClient<{ chatbot: Chatbot }>("/api/chatbots", { method: "POST", body: JSON.stringify(input) })).data.chatbot,
+  update: async (id: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "status">>) => (await apiClient<{ chatbot: Chatbot }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(changes) })).data.chatbot,
+  delete: async (id: string) => (await apiClient<{ success: true }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "DELETE" })).data,
+  detail: async (id: string) => (await apiClient<{ chatbot: Chatbot; knowledge: ChatbotKnowledge[]; conversations: ChatbotConversation[] }>(`/api/chatbots/${encodeURIComponent(id)}`, { cache: "no-store" })).data,
+  addKnowledge: async (id: string, input: { title: string; content: string; source?: string }) => (await apiClient<{ knowledge: ChatbotKnowledge }>(`/api/chatbots/${encodeURIComponent(id)}/knowledge`, { method: "POST", body: JSON.stringify(input) })).data.knowledge,
+  deleteKnowledge: async (id: string, knowledgeId: string) => (await apiClient<{ success: true }>(`/api/chatbots/${encodeURIComponent(id)}/knowledge?knowledgeId=${encodeURIComponent(knowledgeId)}`, { method: "DELETE" })).data,
+  createConversation: async (id: string) => (await apiClient<{ conversation: ChatbotConversation }>(`/api/chatbots/${encodeURIComponent(id)}/conversations`, { method: "POST", body: JSON.stringify({}) })).data.conversation,
+  messages: async (id: string, conversationId: string) => (await apiClient<{ messages: ChatbotMessage[] }>(`/api/chatbots/${encodeURIComponent(id)}/conversations?conversationId=${encodeURIComponent(conversationId)}`, { cache: "no-store" })).data.messages,
+  send: async (id: string, message: string, conversationId?: string) => (await apiClient<{ conversation: ChatbotConversation; message: ChatbotMessage; usage?: ChatbotMessage["usage"] }>(`/api/chatbots/${encodeURIComponent(id)}/chat`, { method: "POST", body: JSON.stringify({ message, conversationId }), timeout: 65_000 })).data,
 };
 
 export const orchestrationService = {
@@ -140,7 +155,7 @@ export const billingService = {
     body: JSON.stringify({ planId, returnTo }),
   })).data,
   portal: async () => (await apiClient<{ url: string }>("/api/billing/portal", { method: "POST" })).data,
-  requestEnterpriseQuote: async (input: { contactName: string; contactEmail: string; companyName: string; seatCount: number; estimatedMonthlyCalls: number; message?: string }) => (await apiClient<{ quote: EnterpriseQuoteRequest }>("/api/billing/enterprise-quote", {
+  requestEnterpriseQuote: async (input: { contactName: string; contactEmail: string; companyName: string; seatCount: number; estimatedMonthlyTokens: number; message?: string }) => (await apiClient<{ quote: EnterpriseQuoteRequest }>("/api/billing/enterprise-quote", {
     method: "POST",
     body: JSON.stringify(input),
   })).data.quote,
@@ -185,10 +200,9 @@ export const accountService = {
 };
 
 export async function sendGoalToN8n(goal: Goal) {
-  const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL;
-  if (!webhookUrl) return simulate({ queued: true, mode: "simulation" as const }, 500);
-  // En production, passez toujours par une route serveur : les secrets et signatures ne doivent jamais être exposés dans le navigateur.
-  const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "goal.created", goal }) });
-  if (!response.ok) throw new Error("Le webhook n8n n’a pas répondu correctement.");
-  return response.json() as Promise<unknown>;
+  return (await apiClient<{ queued: true; eventId: string; status: number }>("/api/integrations/n8n/goals", {
+    method: "POST",
+    body: JSON.stringify({ goal }),
+    timeout: 25_000,
+  })).data;
 }

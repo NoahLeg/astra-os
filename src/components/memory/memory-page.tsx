@@ -28,6 +28,7 @@ export function MemoryPage() {
   const [editing, setEditing] = useState<MemoryItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
+  const [busy, setBusy] = useState<string | null>(null);
   const filtered = memories.filter((item) => filter === "all" || item.type === filter);
   const learned = memories.filter((item) => !item.blocked && (item.type === "habit" || item.type === "decision")).slice(0, 4);
 
@@ -36,24 +37,50 @@ export function MemoryPage() {
     setDraft({ type: item.type, title: item.title, content: item.content, source: item.source, confidence: item.confidence, relations: item.relations });
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     if (!draft.title.trim() || !draft.content.trim()) { toast.error("Le titre et le contenu sont obligatoires."); return; }
-    if (editing) {
-      updateMemory(editing.id, draft);
-      toast.success("Mémoire mise à jour dans Supabase");
-    } else {
-      addMemory({ id: crypto.randomUUID(), createdAt: new Date().toISOString(), blocked: false, ...draft });
-      toast.success("Nouvel élément mémorisé");
+    setBusy("save");
+    try {
+      if (editing) {
+        await updateMemory(editing.id, draft);
+        toast.success("Mémoire mise à jour dans la base");
+      } else {
+        await addMemory({ id: crypto.randomUUID(), createdAt: new Date().toISOString(), blocked: false, ...draft });
+        toast.success("Nouvel élément mémorisé");
+      }
+      setEditing(null);
+      setCreating(false);
+      setDraft(emptyDraft);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "La mémoire n’a pas pu être enregistrée.");
+    } finally {
+      setBusy(null);
     }
-    setEditing(null);
-    setCreating(false);
-    setDraft(emptyDraft);
   };
 
-  const remove = (item: MemoryItem) => {
+  const remove = async (item: MemoryItem) => {
     if (!window.confirm(`Supprimer définitivement « ${item.title} » de la mémoire ?`)) return;
-    deleteMemory(item.id);
-    toast.success("Élément supprimé de la mémoire");
+    setBusy(item.id);
+    try {
+      await deleteMemory(item.id);
+      toast.success("Élément supprimé de la mémoire");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Suppression impossible.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleBlocked = async (item: MemoryItem) => {
+    setBusy(item.id);
+    try {
+      await toggleMemoryBlock(item.id);
+      toast.success(item.blocked ? "Utilisation réactivée" : "Utilisation interdite");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Modification impossible.");
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -64,11 +91,11 @@ export function MemoryPage() {
 
       <div className="scrollbar-none flex gap-2 overflow-x-auto">{filters.map((item) => <Button key={item.key} variant={filter === item.key ? "secondary" : "ghost"} size="sm" onClick={() => setFilter(item.key)}>{item.label}</Button>)}</div>
 
-      {view === "graph" ? <KnowledgeGraph items={filtered} onSelect={openEdit} /> : <Card><CardContent className="overflow-x-auto p-0"><table className="w-full min-w-[900px] text-left text-sm"><thead className="border-b bg-muted/40 text-xs text-muted-foreground"><tr><th className="p-4">Mémoire</th><th>Type</th><th>Source</th><th>Confiance</th><th>Relations</th><th className="pr-4 text-right">Actions</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id} className={cn("border-b last:border-0", item.blocked && "opacity-50")}><td className="max-w-sm p-4"><p className="font-medium">{item.title}</p><p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{item.content}</p></td><td><Badge className="bg-muted text-muted-foreground">{item.type}</Badge></td><td className="text-xs text-muted-foreground">{item.source}</td><td><ConfidenceIndicator value={item.confidence} compact /></td><td className="text-xs text-muted-foreground">{item.relations.join(", ") || "—"}</td><td className="pr-4"><div className="flex justify-end"><Button variant="ghost" size="icon" onClick={() => openEdit(item)} aria-label={`Modifier ${item.title}`}><Edit3 className="size-4" /></Button><Button variant="ghost" size="icon" onClick={() => { toggleMemoryBlock(item.id); toast.success(item.blocked ? "Utilisation réactivée" : "Utilisation interdite"); }} aria-label={item.blocked ? "Autoriser l’utilisation" : "Interdire l’utilisation"}>{item.blocked ? <Eye className="size-4" /> : <EyeOff className="size-4" />}</Button><Button variant="ghost" size="icon" onClick={() => remove(item)} aria-label={`Supprimer ${item.title}`}><Trash2 className="size-4 text-rose-500" /></Button></div></td></tr>)}</tbody></table>{filtered.length === 0 && <p className="py-12 text-center text-sm text-muted-foreground">Aucun élément dans cette catégorie.</p>}</CardContent></Card>}
+      {view === "graph" ? <KnowledgeGraph items={filtered} onSelect={openEdit} /> : <Card><CardContent className="overflow-x-auto p-0"><table className="w-full min-w-[900px] text-left text-sm"><thead className="border-b bg-muted/40 text-xs text-muted-foreground"><tr><th className="p-4">Mémoire</th><th>Type</th><th>Source</th><th>Confiance</th><th>Relations</th><th className="pr-4 text-right">Actions</th></tr></thead><tbody>{filtered.map((item) => <tr key={item.id} className={cn("border-b last:border-0", item.blocked && "opacity-50")}><td className="max-w-sm p-4"><p className="font-medium">{item.title}</p><p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{item.content}</p></td><td><Badge className="bg-muted text-muted-foreground">{item.type}</Badge></td><td className="text-xs text-muted-foreground">{item.source}</td><td><ConfidenceIndicator value={item.confidence} compact /></td><td className="text-xs text-muted-foreground">{item.relations.join(", ") || "—"}</td><td className="pr-4"><div className="flex justify-end"><Button variant="ghost" size="icon" disabled={Boolean(busy)} onClick={() => openEdit(item)} aria-label={`Modifier ${item.title}`}><Edit3 className="size-4" /></Button><Button variant="ghost" size="icon" disabled={Boolean(busy)} onClick={() => void toggleBlocked(item)} aria-label={item.blocked ? "Autoriser l’utilisation" : "Interdire l’utilisation"}>{item.blocked ? <Eye className="size-4" /> : <EyeOff className="size-4" />}</Button><Button variant="ghost" size="icon" disabled={Boolean(busy)} onClick={() => void remove(item)} aria-label={`Supprimer ${item.title}`}><Trash2 className="size-4 text-rose-500" /></Button></div></td></tr>)}</tbody></table>{filtered.length === 0 && <p className="py-12 text-center text-sm text-muted-foreground">Aucun élément dans cette catégorie.</p>}</CardContent></Card>}
 
       <Modal open={creating || Boolean(editing)} onClose={() => { setCreating(false); setEditing(null); }} title={editing ? "Modifier la mémoire" : "Ajouter à la mémoire"} description="Les éléments actifs sont fournis au coordinateur et aux agents lorsqu’ils sont pertinents.">
         <MemoryForm draft={draft} onChange={setDraft} />
-        <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => { setCreating(false); setEditing(null); }}>Annuler</Button><Button onClick={saveDraft}>Enregistrer</Button></div>
+        <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" disabled={Boolean(busy)} onClick={() => { setCreating(false); setEditing(null); }}>Annuler</Button><Button disabled={Boolean(busy)} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : "Enregistrer"}</Button></div>
       </Modal>
     </div>
   );

@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { activities, agents, approvals, automations, connections, goals, memoryItems, projects } from "@/mocks/data";
-import { accessRank, defaultAccountPreferences, defaultWorkspaceSettings } from "@/config";
+import { accessRank, defaultAccountPreferences, defaultWorkspaceSettings, openAIModels } from "@/config";
 import type { AccessLevel, AccountPreferences, AccountProfile, AccountStatus, WorkspaceData, WorkspaceSettings } from "@/types";
 
 type Collection = keyof WorkspaceData;
@@ -101,6 +101,7 @@ export function getLocalDatabase() {
   mkdirSync(path.dirname(databasePath), { recursive: true });
   localDatabase = new DatabaseSync(databasePath);
   localDatabase.exec(`
+    PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS workspace_records (
       collection TEXT NOT NULL,
@@ -146,6 +147,17 @@ export function getLocalDatabase() {
     }
   }
   return localDatabase;
+}
+
+export function ensureLocalDatabaseColumn(tableName: string, columnName: string, definition: string) {
+  if (!/^[a-z][a-z0-9_]*$/.test(tableName) || !/^[a-z][a-z0-9_]*$/.test(columnName) || !/^[A-Z0-9_ ()'-]+$/.test(definition)) {
+    throw new Error("Définition de colonne SQLite invalide.");
+  }
+  const database = getLocalDatabase();
+  const columns = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === columnName)) {
+    database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
 }
 
 export async function getWorkspaceIdForUser(userId: string) {
@@ -229,7 +241,12 @@ export async function getWorkspaceConfiguration(userId: string) {
     `workspaces?id=eq.${context.workspaceId}&select=name,settings&limit=1`,
   );
   const workspace = rows[0];
-  return { workspaceName: workspace?.name ?? context.workspaceName, settings: { ...defaultWorkspaceSettings, ...(workspace?.settings ?? {}) } };
+  const settings = { ...defaultWorkspaceSettings, ...(workspace?.settings ?? {}) };
+  const availableModels = new Set(openAIModels.map((model) => model.id));
+  const enabledModelIds = settings.enabledModelIds.filter((modelId) => availableModels.has(modelId as typeof openAIModels[number]["id"]));
+  if (!enabledModelIds.length) enabledModelIds.push(defaultWorkspaceSettings.defaultModelId);
+  const defaultModelId = enabledModelIds.includes(settings.defaultModelId) ? settings.defaultModelId : enabledModelIds[0];
+  return { workspaceName: workspace?.name ?? context.workspaceName, settings: { ...settings, enabledModelIds, defaultModelId } };
 }
 
 export async function updateWorkspaceConfiguration(userId: string, workspaceName: string, settings: WorkspaceSettings) {

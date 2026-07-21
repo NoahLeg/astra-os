@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildMemoryContext, createToolApproval, generateAgentTask } from "@/lib/server/agent-runtime";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { BillingAccessError, consumeApiUsage, enforceAgentQuota, getWorkspaceSubscription } from "@/lib/server/billing";
+import { BillingAccessError, enforceAgentQuota, getWorkspaceSubscription } from "@/lib/server/billing";
 import { getWorkspaceConfiguration, getWorkspaceData, hasWorkspaceAccess, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
 import { getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 import type { ActivityEvent, Goal, Project, WorkItemAgentRun } from "@/types";
@@ -44,7 +44,6 @@ export async function POST(request: Request) {
     if (!agent) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
     if (!agent.enabled) return NextResponse.json({ error: `Activez l’agent ${agent.name} avant de lancer cette tâche.` }, { status: 409 });
 
-    await consumeApiUsage(user.id, "agents", 1);
     const configuration = await getOpenAIConfiguration(user.id);
     const entityLabel = parsed.data.entityType === "goal" ? "Objectif" : "Projet";
     const taskResult = await generateAgentTask({
@@ -52,14 +51,15 @@ export async function POST(request: Request) {
       agent,
       instruction: `${entityLabel} : ${entity.title}\nContexte : ${entity.description}\n\nMission confiée : ${parsed.data.instruction}`,
       workspace,
-      memoryContext: buildMemoryContext(workspace, Boolean(workspaceConfiguration?.settings.memoryEnabled)),
+      memoryContext: buildMemoryContext(workspace, Boolean(workspaceConfiguration?.settings.memoryEnabled), parsed.data.instruction),
       configuration,
+      feature: "agents",
     });
     const approval = createToolApproval({
       agent,
       instruction: parsed.data.instruction,
       result: taskResult,
-      model: configuration.model,
+      model: taskResult.usage?.model ?? configuration.model,
       contextPrefix: `${entityLabel} « ${entity.title} »`,
     });
     const run: WorkItemAgentRun = {
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       instruction: parsed.data.instruction,
       result: taskResult.result,
       confidence: taskResult.confidence,
-      model: configuration.model,
+      model: taskResult.usage?.model ?? configuration.model,
       status: approval ? "approval" : "completed",
       createdAt: new Date().toISOString(),
       approvalId: approval?.id,
@@ -116,6 +116,7 @@ export async function POST(request: Request) {
       model: configuration.model,
       activity,
       approval,
+      usage: taskResult.usage,
     });
   } catch (error) {
     if (error instanceof BillingAccessError || error instanceof OpenAIRequestError) return NextResponse.json({ error: error.message }, { status: error.status });

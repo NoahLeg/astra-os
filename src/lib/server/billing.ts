@@ -19,6 +19,12 @@ interface SubscriptionRow {
   api_usage_reset_at: string;
   api_usage_daily: number;
   api_usage_day: string;
+  input_tokens_used: number;
+  cached_input_tokens_used: number;
+  output_tokens_used: number;
+  total_tokens_used: number;
+  daily_total_tokens_used: number;
+  total_cost_nano_usd: number;
   member_limit_override?: number;
 }
 
@@ -49,16 +55,22 @@ function stripeConfiguredPlans(): SubscriptionPlan["id"][] {
 
 function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan, memberCount: number): WorkspaceSubscription {
   const maxMembers = plan.id === "enterprise" ? row.member_limit_override ?? plan.maxMembers : plan.maxMembers;
+  const monthlyUsageExpired = new Date(row.api_usage_reset_at).getTime() <= Date.now();
+  const dailyUsageExpired = row.api_usage_day !== new Date().toISOString().slice(0, 10);
   return {
     workspaceId: row.workspace_id,
     planId: plan.id,
     planName: plan.name,
     status: row.status,
-    apiUsage: row.api_usage,
-    apiLimit: plan.apiLimit,
-    dailyApiUsage: row.api_usage_day === new Date().toISOString().slice(0, 10) ? row.api_usage_daily : 0,
-    dailyApiLimit: plan.dailyApiLimit,
-    minuteApiLimit: plan.minuteApiLimit,
+    inputTokensUsed: monthlyUsageExpired ? 0 : row.input_tokens_used,
+    cachedInputTokensUsed: monthlyUsageExpired ? 0 : row.cached_input_tokens_used,
+    outputTokensUsed: monthlyUsageExpired ? 0 : row.output_tokens_used,
+    totalTokensUsed: monthlyUsageExpired ? 0 : row.total_tokens_used,
+    monthlyTokenLimit: plan.monthlyTokenLimit,
+    dailyTokensUsed: dailyUsageExpired ? 0 : row.daily_total_tokens_used,
+    dailyTokenLimit: plan.dailyTokenLimit,
+    minuteRequestLimit: plan.minuteRequestLimit,
+    totalCostNanoUsd: monthlyUsageExpired ? 0 : row.total_cost_nano_usd,
     maxAgents: plan.maxAgents,
     memberCount,
     maxMembers,
@@ -81,11 +93,15 @@ function localSubscription(): WorkspaceSubscription {
     planId: plan.id,
     planName: plan.name,
     status: "active",
-    apiUsage: 0,
-    apiLimit: plan.apiLimit,
-    dailyApiUsage: 0,
-    dailyApiLimit: plan.dailyApiLimit,
-    minuteApiLimit: plan.minuteApiLimit,
+    inputTokensUsed: 0,
+    cachedInputTokensUsed: 0,
+    outputTokensUsed: 0,
+    totalTokensUsed: 0,
+    monthlyTokenLimit: plan.monthlyTokenLimit,
+    dailyTokensUsed: 0,
+    dailyTokenLimit: plan.dailyTokenLimit,
+    minuteRequestLimit: plan.minuteRequestLimit,
+    totalCostNanoUsd: 0,
     maxAgents: plan.maxAgents,
     memberCount: 1,
     maxMembers: plan.maxMembers,
@@ -107,7 +123,7 @@ export function getSubscriptionPlans() {
 export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string): Promise<WorkspaceSubscription> {
   if (!isSupabaseDatabaseEnabled() || workspaceId === "local") return localSubscription();
   let rows = await serverDatabaseRequest<SubscriptionRow[]>(
-    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day,member_limit_override&limit=1`,
+    `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day,input_tokens_used,cached_input_tokens_used,output_tokens_used,total_tokens_used,daily_total_tokens_used,total_cost_nano_usd,member_limit_override&limit=1`,
   );
   if (!rows[0]) {
     await serverDatabaseRequest("workspace_subscriptions?on_conflict=workspace_id", {
@@ -116,7 +132,7 @@ export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string)
       body: JSON.stringify({ workspace_id: workspaceId, plan_id: "free", status: "active" }),
     });
     rows = await serverDatabaseRequest<SubscriptionRow[]>(
-      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day,member_limit_override&limit=1`,
+      `workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=workspace_id,plan_id,status,stripe_customer_id,stripe_subscription_id,current_period_end,cancel_at_period_end,onboarding_completed_at,api_usage,api_usage_reset_at,api_usage_daily,api_usage_day,input_tokens_used,cached_input_tokens_used,output_tokens_used,total_tokens_used,daily_total_tokens_used,total_cost_nano_usd,member_limit_override&limit=1`,
     );
   }
   const row = rows[0];
@@ -164,7 +180,7 @@ export async function resetWorkspaceApiUsage(workspaceId: string) {
   await serverDatabaseRequest(`workspace_subscriptions?workspace_id=eq.${encodeURIComponent(workspaceId)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ api_usage: 0, api_usage_reset_at: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(), api_usage_daily: 0, api_usage_day: new Date().toISOString().slice(0, 10), api_usage_minute: 0, api_usage_minute_started_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ api_usage: 0, api_usage_reset_at: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString(), api_usage_daily: 0, api_usage_day: new Date().toISOString().slice(0, 10), api_usage_minute: 0, api_usage_minute_started_at: new Date().toISOString(), input_tokens_used: 0, cached_input_tokens_used: 0, output_tokens_used: 0, total_tokens_used: 0, daily_total_tokens_used: 0, total_cost_nano_usd: 0, updated_at: new Date().toISOString() }),
   });
 }
 
@@ -195,25 +211,6 @@ export function enforceAgentQuota(subscription: WorkspaceSubscription, agents: A
   if (enabledCount > subscription.maxAgents) {
     throw new BillingAccessError(`Votre offre autorise ${subscription.maxAgents} agent${subscription.maxAgents > 1 ? "s" : ""} actif${subscription.maxAgents > 1 ? "s" : ""}. Désactivez les agents excédentaires.`, 409);
   }
-}
-
-export async function consumeApiUsage(userId: string, feature: FeatureKey, units = 1) {
-  const subscription = await requireSubscriptionFeature(userId, feature);
-  if (!isSupabaseDatabaseEnabled()) return subscription;
-  try {
-    await serverDatabaseRequest("rpc/consume_workspace_api_usage", {
-      method: "POST",
-      body: JSON.stringify({ p_workspace_id: subscription.workspaceId, p_units: units }),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Quota API indisponible";
-    if (message.includes("API_QUOTA_EXCEEDED")) throw new BillingAccessError("Votre limite mensuelle d'utilisation de l'API est atteinte.", 429);
-    if (message.includes("API_DAILY_QUOTA_EXCEEDED")) throw new BillingAccessError("Votre limite quotidienne d’utilisation de l’API est atteinte. Elle sera réinitialisée demain.", 429);
-    if (message.includes("API_RATE_LIMIT_EXCEEDED")) throw new BillingAccessError("Trop d’appels ont été lancés en une minute. Patientez quelques instants.", 429);
-    if (message.includes("SUBSCRIPTION_INACTIVE")) throw new BillingAccessError("L'abonnement de cette entreprise n'est pas actif.", 402);
-    throw error;
-  }
-  return getWorkspaceSubscriptionByWorkspaceId(subscription.workspaceId);
 }
 
 export function getStripePriceId(planId: SubscriptionPlan["id"]) {
@@ -311,7 +308,7 @@ type EnterpriseQuoteInput = {
   contactEmail: string;
   companyName: string;
   seatCount: number;
-  estimatedMonthlyCalls: number;
+  estimatedMonthlyTokens: number;
   message?: string;
 };
 
@@ -323,7 +320,8 @@ type EnterpriseQuoteRow = {
   contact_email: string;
   company_name: string;
   seat_count: number;
-  estimated_monthly_calls: number;
+  estimated_monthly_tokens: number;
+  estimated_monthly_calls?: number;
   message?: string;
   status: EnterpriseQuoteStatus;
   created_at: string;
@@ -339,7 +337,7 @@ function toEnterpriseQuote(row: EnterpriseQuoteRow): EnterpriseQuoteRequest {
     contactEmail: row.contact_email,
     companyName: row.company_name,
     seatCount: row.seat_count,
-    estimatedMonthlyCalls: row.estimated_monthly_calls,
+    estimatedMonthlyTokens: row.estimated_monthly_tokens ?? row.estimated_monthly_calls ?? 0,
     message: row.message,
     status: row.status,
     createdAt: row.created_at,
@@ -362,7 +360,8 @@ export async function createEnterpriseQuoteRequest(input: EnterpriseQuoteInput):
       contact_email: input.contactEmail,
       company_name: input.companyName,
       seat_count: input.seatCount,
-      estimated_monthly_calls: input.estimatedMonthlyCalls,
+      estimated_monthly_tokens: input.estimatedMonthlyTokens,
+      estimated_monthly_calls: input.estimatedMonthlyTokens,
       message: input.message || null,
     }),
   });
@@ -373,7 +372,7 @@ export async function createEnterpriseQuoteRequest(input: EnterpriseQuoteInput):
 export async function listEnterpriseQuoteRequests(workspaceId: string): Promise<EnterpriseQuoteRequest[]> {
   if (!isSupabaseDatabaseEnabled()) return [];
   const rows = await serverDatabaseRequest<EnterpriseQuoteRow[]>(
-    `enterprise_quote_requests?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=id,workspace_id,requested_by,contact_name,contact_email,company_name,seat_count,estimated_monthly_calls,message,status,created_at,updated_at&order=created_at.desc`,
+    `enterprise_quote_requests?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=id,workspace_id,requested_by,contact_name,contact_email,company_name,seat_count,estimated_monthly_tokens,estimated_monthly_calls,message,status,created_at,updated_at&order=created_at.desc`,
   );
   return rows.map(toEnterpriseQuote);
 }

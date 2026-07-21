@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, ArrowUp, CheckCircle2, LoaderCircle, X, Zap } from "lucide-react";
 import { AstraMark } from "@/components/shared/astra-mark";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { assistantService } from "@/services";
 import { useAppStore } from "@/stores/app-store";
-import type { AssistantMessage } from "@/types";
+import type { AssistantMessage, ChatbotMessage } from "@/types";
 
 const initialMessages: AssistantMessage[] = [{
   id: "welcome",
@@ -24,6 +24,22 @@ export function AssistantPanel() {
   const [value, setValue] = useState("");
   const [pending, setPending] = useState(false);
   const [model, setModel] = useState("OpenAI");
+  const [conversationId, setConversationId] = useState<string>();
+
+  useEffect(() => {
+    void assistantService.load().then((data) => {
+      setConversationId(data.conversation.id);
+      setModel(data.chatbot.model);
+      if (data.messages.length) setMessages(data.messages.map((message: ChatbotMessage) => ({
+        id: message.id,
+        role: message.role,
+        type: message.status === "failed" ? "error" : "text",
+        content: message.content,
+        timestamp: new Date(message.createdAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }),
+        usage: message.usage,
+      })));
+    }).catch(() => undefined);
+  }, []);
 
   const send = async () => {
     if (!value.trim() || pending) return;
@@ -33,7 +49,8 @@ export function AssistantPanel() {
     setMessages((items) => [...items, { id: crypto.randomUUID(), role: "user", type: "text", content, timestamp: "Maintenant" }]);
 
     try {
-      const response = await assistantService.send(content);
+      const response = await assistantService.send(content, conversationId);
+      setConversationId(response.conversation.id);
       setModel(response.model);
       setMessages((items) => [...items, {
         id: crypto.randomUUID(),
@@ -41,6 +58,7 @@ export function AssistantPanel() {
         type: content.toLowerCase().includes("plan") ? "plan" : "text",
         content: response.content,
         timestamp: "Maintenant",
+        usage: response.usage,
       }]);
     } catch (error) {
       setMessages((items) => [...items, {
@@ -96,6 +114,7 @@ export function AssistantPanel() {
                 ) : null}
                 {message.type === "warning" ? <AlertTriangle className="mb-2 size-4 text-amber-500" /> : null}
                 <p className="whitespace-pre-wrap">{message.content}</p>
+                {message.usage ? <p className="mt-3 border-t pt-2 font-mono text-[9px] uppercase tracking-[.06em] opacity-70">{message.usage.inputTokens.toLocaleString("fr-FR")} entrée · {message.usage.outputTokens.toLocaleString("fr-FR")} sortie · {message.usage.totalTokens.toLocaleString("fr-FR")} tokens{message.usage.pricingStatus === "exact" && message.usage.totalCostNanoUsd !== undefined ? ` · ${(message.usage.totalCostNanoUsd / 1_000_000_000).toLocaleString("fr-FR", { style: "currency", currency: "USD", maximumFractionDigits: 6 })}` : ""}</p> : null}
               </div>
               <p className="mt-1 px-1 font-mono text-[9px] uppercase tracking-[.08em] text-muted-foreground">{message.timestamp}</p>
             </div>

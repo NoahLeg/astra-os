@@ -5,8 +5,8 @@ export type AutonomyLevel = 0 | 1 | 2 | 3 | 4;
 export type AccessLevel = "viewer" | "operator" | "admin";
 export type AccountStatus = "active" | "suspended";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid";
-export type FeatureKey = "assistant" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin" | "collaboration";
-export type AgentToolName = "send_email" | "create_email_draft" | "organize_email" | "create_calendar_event" | "create_drive_file";
+export type FeatureKey = "assistant" | "chatbots" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin" | "collaboration";
+export type AgentToolName = "send_email" | "create_email_draft" | "organize_email" | "smart_organize_gmail" | "create_calendar_event" | "create_drive_file";
 export type AccentColor = "indigo" | "cyan" | "violet" | "emerald" | "rose";
 export type InterfaceDensity = "comfortable" | "compact";
 
@@ -47,9 +47,9 @@ export interface SubscriptionPlan {
   name: string;
   description: string;
   monthlyPriceCents: number;
-  apiLimit: number;
-  dailyApiLimit: number;
-  minuteApiLimit: number;
+  monthlyTokenLimit: number;
+  dailyTokenLimit: number;
+  minuteRequestLimit: number;
   maxAgents: number;
   maxMembers: number;
   features: FeatureKey[];
@@ -62,11 +62,15 @@ export interface WorkspaceSubscription {
   planId: SubscriptionPlan["id"];
   planName: string;
   status: SubscriptionStatus;
-  apiUsage: number;
-  apiLimit: number;
-  dailyApiUsage: number;
-  dailyApiLimit: number;
-  minuteApiLimit: number;
+  inputTokensUsed: number;
+  cachedInputTokensUsed: number;
+  outputTokensUsed: number;
+  totalTokensUsed: number;
+  monthlyTokenLimit: number;
+  dailyTokensUsed: number;
+  dailyTokenLimit: number;
+  minuteRequestLimit: number;
+  totalCostNanoUsd: number;
   maxAgents: number;
   memberCount: number;
   maxMembers: number;
@@ -91,7 +95,7 @@ export interface EnterpriseQuoteRequest {
   contactEmail: string;
   companyName: string;
   seatCount: number;
-  estimatedMonthlyCalls: number;
+  estimatedMonthlyTokens: number;
   message?: string;
   status: EnterpriseQuoteStatus;
   createdAt: string;
@@ -157,6 +161,7 @@ export interface BillingOverview {
   plans: SubscriptionPlan[];
   subscription: WorkspaceSubscription;
   invoices: BillingInvoice[];
+  usage: AIUsageSummary;
 }
 
 export interface WorkspaceSettings {
@@ -220,6 +225,7 @@ export interface AgentExecution {
   model: string;
   activity: ActivityEvent;
   approval?: ApprovalRequest;
+  usage?: AIUsageEvent;
 }
 
 export interface WorkItemAgentRun {
@@ -260,6 +266,26 @@ export interface OrganizeEmailToolCall {
   };
 }
 
+export interface SmartGmailOperation {
+  messageIds: string[];
+  category: "invoice" | "order" | "bank" | "social" | "github" | "newsletter" | "work" | "personal" | "promotion" | "spam" | "other";
+  labelPath: string;
+  archive: boolean;
+  markRead: boolean;
+  markImportant: boolean;
+  spam: boolean;
+  trash: boolean;
+  reason: string;
+  confidence: number;
+}
+
+export interface SmartOrganizeGmailToolCall {
+  tool: "smart_organize_gmail";
+  arguments: {
+    operations: SmartGmailOperation[];
+  };
+}
+
 export interface CreateCalendarEventToolCall {
   tool: "create_calendar_event";
   arguments: { title: string; description?: string; startAt: string; endAt: string; attendees: string[]; timeZone: string };
@@ -270,7 +296,7 @@ export interface CreateDriveFileToolCall {
   arguments: { name: string; content: string; mimeType: "text/plain" | "text/markdown" };
 }
 
-export type AgentToolCall = SendEmailToolCall | CreateEmailDraftToolCall | OrganizeEmailToolCall | CreateCalendarEventToolCall | CreateDriveFileToolCall;
+export type AgentToolCall = SendEmailToolCall | CreateEmailDraftToolCall | OrganizeEmailToolCall | SmartOrganizeGmailToolCall | CreateCalendarEventToolCall | CreateDriveFileToolCall;
 
 export interface AppNotification {
   id: string;
@@ -375,6 +401,7 @@ export interface AutomationNode {
   id: string;
   type: "trigger" | "condition" | "agent" | "action" | "approval" | "result";
   label: string;
+  config?: Record<string, string | number | boolean | string[]>;
 }
 
 export interface Automation {
@@ -397,7 +424,46 @@ export interface Automation {
   preferredTool?: AgentToolName | "auto";
   lastResult?: string;
   lastConfidence?: number;
-  lastStatus?: "completed" | "approval" | "error";
+  lastStatus?: "completed" | "approval" | "error" | "cancelled";
+  schedule?: string;
+  timeZone?: string;
+  retryPolicy?: { maximumAttempts: number; backoffSeconds: number };
+}
+
+export type AutomationRunStatus = "pending" | "running" | "waiting_approval" | "completed" | "failed" | "cancelled";
+
+export interface AutomationRunStep {
+  id: string;
+  nodeId: string;
+  nodeType: AutomationNode["type"];
+  position: number;
+  status: AutomationRunStatus | "skipped";
+  output?: Record<string, unknown>;
+  errorCode?: string;
+  errorMessage?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  triggerType: "manual" | "schedule" | "webhook";
+  status: AutomationRunStatus;
+  attempt: number;
+  result?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  totalCostNanoUsd: number;
+  approvalId?: string;
+  actionNodeId?: string;
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  steps: AutomationRunStep[];
 }
 
 export interface Connection {
@@ -426,6 +492,9 @@ export interface ApprovalRequest {
   toolCall?: AgentToolCall;
   executedAt?: string;
   executionResult?: string;
+  automationId?: string;
+  automationRunId?: string;
+  automationNodeId?: string;
 }
 
 export interface ToolExecution {
@@ -500,6 +569,8 @@ export interface AutomationExecution {
   activity: ActivityEvent;
   automation: Automation;
   approval?: ApprovalRequest;
+  run: AutomationRun;
+  usage?: AIUsageEvent;
 }
 
 export interface AssistantMessage {
@@ -509,4 +580,84 @@ export interface AssistantMessage {
   content: string;
   timestamp: string;
   actions?: string[];
+  usage?: AIUsageEvent;
+}
+
+export interface AIUsageEvent {
+  id: string;
+  feature: FeatureKey;
+  provider: string;
+  model: string;
+  providerRequestId?: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  totalTokens: number;
+  inputCostNanoUsd?: number;
+  cachedInputCostNanoUsd?: number;
+  outputCostNanoUsd?: number;
+  totalCostNanoUsd?: number;
+  pricingStatus: "exact" | "unpriced";
+  createdAt: string;
+}
+
+export interface AIUsageSummary {
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  totalCostNanoUsd: number;
+  unpricedRequestCount: number;
+  requests: AIUsageEvent[];
+  byModel: Array<{ model: string; inputTokens: number; outputTokens: number; totalTokens: number; totalCostNanoUsd: number; requestCount: number }>;
+}
+
+export interface ChatbotKnowledge {
+  id: string;
+  chatbotId: string;
+  title: string;
+  content: string;
+  source: string;
+  blocked: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatbotConversation {
+  id: string;
+  chatbotId: string;
+  title: string;
+  lastMessageAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatbotMessage {
+  id: string;
+  conversationId: string;
+  role: "system" | "user" | "assistant";
+  content: string;
+  status: "pending" | "completed" | "failed";
+  errorMessage?: string;
+  usageEventId?: string;
+  createdAt: string;
+  usage?: AIUsageEvent;
+}
+
+export interface Chatbot {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  provider: "openai";
+  model: string;
+  systemPrompt: string;
+  memoryEnabled: boolean;
+  isSystem: boolean;
+  status: "active" | "paused";
+  createdAt: string;
+  updatedAt: string;
+  knowledge?: ChatbotKnowledge[];
+  conversations?: ChatbotConversation[];
 }

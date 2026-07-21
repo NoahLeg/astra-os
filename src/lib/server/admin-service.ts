@@ -25,7 +25,7 @@ export interface AdminWorkspace {
   subscription: {
     planId: SubscriptionPlan["id"];
     status: SubscriptionStatus;
-    apiUsage: number;
+    totalTokensUsed: number;
     currentPeriodEnd?: string;
     cancelAtPeriodEnd: boolean;
     onboardingCompleted: boolean;
@@ -127,7 +127,7 @@ export async function listAdminWorkspaces(): Promise<AdminWorkspace[]> {
     adminRequest<Array<{ id: string; name: string; slug: string; created_at: string }>>("workspaces?select=id,name,slug,created_at&order=created_at.desc"),
     adminRequest<Array<{ workspace_id: string; user_id: string; role: string; access_level?: string; status?: string }>>("workspace_members?select=workspace_id,user_id,role,access_level,status"),
     adminRequest<Array<{ id: string; email: string; full_name: string; created_at: string }>>("profiles?select=id,email,full_name,created_at"),
-    adminRequest<Array<{ workspace_id: string; plan_id: SubscriptionPlan["id"]; status: SubscriptionStatus; api_usage: number; current_period_end?: string; cancel_at_period_end: boolean; onboarding_completed_at?: string; stripe_subscription_id?: string }>>("workspace_subscriptions?select=workspace_id,plan_id,status,api_usage,current_period_end,cancel_at_period_end,onboarding_completed_at,stripe_subscription_id"),
+    adminRequest<Array<{ workspace_id: string; plan_id: SubscriptionPlan["id"]; status: SubscriptionStatus; total_tokens_used: number; current_period_end?: string; cancel_at_period_end: boolean; onboarding_completed_at?: string; stripe_subscription_id?: string }>>("workspace_subscriptions?select=workspace_id,plan_id,status,total_tokens_used,current_period_end,cancel_at_period_end,onboarding_completed_at,stripe_subscription_id"),
     authAdminRequest<{ users?: Array<{ id: string; last_sign_in_at?: string; email_confirmed_at?: string }> }>("admin/users?page=1&per_page=1000").catch(() => ({ users: [] })),
   ]);
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -143,7 +143,7 @@ export async function listAdminWorkspaces(): Promise<AdminWorkspace[]> {
       return {
         planId: subscription?.plan_id ?? "free",
         status: subscription?.status ?? "active",
-        apiUsage: subscription?.api_usage ?? 0,
+        totalTokensUsed: subscription?.total_tokens_used ?? 0,
         currentPeriodEnd: subscription?.current_period_end,
         cancelAtPeriodEnd: Boolean(subscription?.cancel_at_period_end),
         onboardingCompleted: Boolean(subscription?.onboarding_completed_at),

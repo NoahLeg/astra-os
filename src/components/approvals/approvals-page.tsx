@@ -7,7 +7,6 @@ import { ApprovalCard } from "./approval-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { workspaceService } from "@/services";
 import { useAppStore } from "@/stores/app-store";
 import type { ApprovalRequest } from "@/types";
 
@@ -21,6 +20,16 @@ async function executeApprovedTool(approvalId: string) {
   if (!response.ok) throw new Error(payload.error ?? "L'action n'a pas pu être exécutée.");
 }
 
+async function resolveApproval(approvalId: string, decision: "approved" | "rejected") {
+  const response = await fetch("/api/approvals/resolve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ approvalId, decision }),
+  });
+  const payload = await response.json().catch(() => ({})) as { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? "La décision n'a pas pu être enregistrée.");
+}
+
 export function ApprovalsPage() {
   const { approvals, hydrateFromDatabase } = useAppStore();
   const [filter, setFilter] = useState("pending");
@@ -32,7 +41,7 @@ export function ApprovalsPage() {
       if (!skipConfirmation && !window.confirm(`Autoriser puis exécuter réellement « ${approval.action} » ?`)) return;
       await executeApprovedTool(approval.id);
     } else {
-      await workspaceService.patch("approvals", approval.id, { status });
+      await resolveApproval(approval.id, status);
     }
   };
 

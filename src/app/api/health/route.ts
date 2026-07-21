@@ -8,7 +8,8 @@ export async function GET() {
   try {
     const database = await checkDatabaseHealth();
     return NextResponse.json({ status: "healthy", database, authentication: isAuthenticationEnabled ? "configured" : "local", timestamp: new Date().toISOString() });
-  } catch {
+  } catch (error) {
+    console.error("[health] La base de données ne répond pas.", error);
     return NextResponse.json({ status: "unhealthy", timestamp: new Date().toISOString() }, { status: 503 });
   }
 }

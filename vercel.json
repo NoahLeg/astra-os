@@ -1,9 +1,47 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
   "functions": {
+    "src/app/api/assistant/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/run/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/tools/execute/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/automations/run/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/chatbots/[id]/chat/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/automations/route.ts": {
+      "maxDuration": 120
+    },
+    "src/app/api/connections/google/gmail/send/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/goals/analyze/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/integrations/n8n/goals/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/orchestration/run/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/work-items/run/route.ts": {
+      "maxDuration": 60
+    },
     "src/app/api/workspace/route.ts": {
       "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/automations", "schedule": "0 6 * * *" }
+  ]
 }

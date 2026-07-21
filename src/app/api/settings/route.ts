@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { openAIModels } from "@/config";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { getWorkspaceConfiguration, hasWorkspaceAccess, updateWorkspaceConfiguration } from "@/lib/server/database";
 
@@ -9,8 +10,8 @@ export const dynamic = "force-dynamic";
 const settingsSchema = z.object({
   locale: z.enum(["fr", "en"]),
   compactMode: z.boolean(),
-  enabledModelIds: z.array(z.string().min(1).max(50)).max(20),
-  defaultModelId: z.string().min(1).max(50),
+  enabledModelIds: z.array(z.enum(openAIModels.map((model) => model.id) as [typeof openAIModels[number]["id"], ...Array<typeof openAIModels[number]["id"]>])).min(1).max(openAIModels.length),
+  defaultModelId: z.enum(openAIModels.map((model) => model.id) as [typeof openAIModels[number]["id"], ...Array<typeof openAIModels[number]["id"]>]),
   defaultAutonomy: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   telemetryEnabled: z.boolean(),
   allowMemoryLearning: z.boolean(),
@@ -27,7 +28,7 @@ const settingsSchema = z.object({
   weeklyDigest: z.boolean(),
   dataRetentionDays: z.number().int().min(1).max(3_650),
   exportFormat: z.enum(["json", "csv"]),
-});
+}).refine((settings) => settings.enabledModelIds.includes(settings.defaultModelId), { path: ["defaultModelId"], message: "Le modèle par défaut doit être activé." });
 
 const updateSchema = z.object({
   workspaceName: z.string().trim().min(2).max(100),

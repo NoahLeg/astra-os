@@ -14,15 +14,17 @@ import { featureLabels } from "@/config";
 import { cn } from "@/lib/utils";
 import { billingService } from "@/services";
 import { useAppStore } from "@/stores/app-store";
-import type { SubscriptionPlan, WorkspaceSubscription } from "@/types";
+import type { AIUsageSummary, SubscriptionPlan, WorkspaceSubscription } from "@/types";
 
 const currency = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const usd = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "USD", minimumFractionDigits: 4, maximumFractionDigits: 6 });
 
 export function BillingPage() {
   const searchParams = useSearchParams();
   const setAccount = useAppStore((state) => state.setAccount);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [subscription, setSubscription] = useState<WorkspaceSubscription>();
+  const [usage, setUsage] = useState<AIUsageSummary>();
   const [loading, setLoading] = useState(true);
   const [busyPlan, setBusyPlan] = useState<string>();
   const [quoteOpen, setQuoteOpen] = useState(false);
@@ -36,6 +38,7 @@ export function BillingPage() {
       .then((data) => {
         setPlans(data.plans);
         setSubscription(data.subscription);
+        setUsage(data.usage);
         const currentAccount = useAppStore.getState().account;
         if (currentAccount) setAccount({ ...currentAccount, subscription: data.subscription });
       })
@@ -75,14 +78,14 @@ export function BillingPage() {
   if (loading) return <div className="flex min-h-80 items-center justify-center"><LoaderCircle className="size-8 animate-spin text-primary" /></div>;
   if (!subscription) return <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-6 text-sm text-rose-500">L’abonnement n’a pas pu être chargé.</div>;
 
-  const usagePercent = Math.min(100, subscription.apiLimit ? (subscription.apiUsage / subscription.apiLimit) * 100 : 0);
+  const usagePercent = Math.min(100, subscription.monthlyTokenLimit ? (subscription.totalTokensUsed / subscription.monthlyTokenLimit) * 100 : 0);
 
   return (
     <div className="space-y-7">
       <PageHeader
         eyebrow="Facturation et limites"
         title="Abonnement"
-        description="Choisissez les capacités disponibles pour votre entreprise et suivez la consommation réelle des appels IA."
+        description="Choisissez les capacités disponibles pour votre entreprise et suivez les tokens et coûts réels des requêtes IA."
         actions={subscription.managedByStripe ? (
           <Button variant="outline" disabled={busyPlan === "portal"} onClick={() => void openPortal()}>
             {busyPlan === "portal" ? <LoaderCircle className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
@@ -105,8 +108,8 @@ export function BillingPage() {
                 <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><Users className="size-3.5" />{subscription.memberCount} membre{subscription.memberCount > 1 ? "s" : ""} sur {subscription.maxMembers} siège{subscription.maxMembers > 1 ? "s" : ""}</p>
               </div>
               <div className="text-right">
-                <p className="font-mono text-3xl font-semibold">{subscription.apiUsage.toLocaleString("fr-FR")}</p>
-                <p className="text-xs text-muted-foreground">sur {subscription.apiLimit.toLocaleString("fr-FR")} appels API</p>
+                <p className="font-mono text-3xl font-semibold">{subscription.totalTokensUsed.toLocaleString("fr-FR")}</p>
+                <p className="text-xs text-muted-foreground">sur {subscription.monthlyTokenLimit.toLocaleString("fr-FR")} tokens</p>
               </div>
             </div>
             <Progress value={usagePercent} className="mt-5 h-2" />
@@ -114,6 +117,7 @@ export function BillingPage() {
               <span>{usagePercent.toFixed(1)} % utilisés</span>
               <span>Réinitialisation le {new Date(subscription.usageResetAt).toLocaleDateString("fr-FR")}</span>
             </div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border bg-background/50 p-3"><p className="text-xs text-muted-foreground">Tokens d’entrée</p><p className="mt-1 font-mono font-semibold">{subscription.inputTokensUsed.toLocaleString("fr-FR")}</p><p className="text-[10px] text-muted-foreground">dont {subscription.cachedInputTokensUsed.toLocaleString("fr-FR")} en cache</p></div><div className="rounded-xl border bg-background/50 p-3"><p className="text-xs text-muted-foreground">Tokens de sortie</p><p className="mt-1 font-mono font-semibold">{subscription.outputTokensUsed.toLocaleString("fr-FR")}</p></div><div className="rounded-xl border bg-background/50 p-3"><p className="text-xs text-muted-foreground">Coût cumulé réel</p><p className="mt-1 font-mono font-semibold">{usd.format(subscription.totalCostNanoUsd / 1_000_000_000)}</p></div></div>
           </CardContent>
         </Card>
 
@@ -157,8 +161,8 @@ export function BillingPage() {
                 </p>
 
                 <div className="mt-5 rounded-xl bg-muted/40 p-3">
-                  <p className="font-mono text-lg font-semibold">{plan.apiLimit.toLocaleString("fr-FR")}</p>
-                  <p className="text-xs text-muted-foreground">appels / mois · {plan.dailyApiLimit}/jour · {plan.maxAgents || "Aucun"} agent{plan.maxAgents > 1 ? "s" : ""}</p>
+                  <p className="font-mono text-lg font-semibold">{plan.monthlyTokenLimit.toLocaleString("fr-FR")} tokens</p>
+                  <p className="text-xs text-muted-foreground">{plan.dailyTokenLimit.toLocaleString("fr-FR")}/jour · {plan.minuteRequestLimit}/min · {plan.maxAgents || "Aucun"} agent{plan.maxAgents > 1 ? "s" : ""}</p>
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Users className="size-3" />Jusqu’à {plan.maxMembers} membre{plan.maxMembers > 1 ? "s" : ""}</p>
                 </div>
 
@@ -180,6 +184,8 @@ export function BillingPage() {
           );
         })}
       </div>
+
+      <Card><CardHeader><CardTitle>Détail des requêtes IA</CardTitle></CardHeader><CardContent><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs text-muted-foreground"><tr className="border-b"><th className="py-3">Date</th><th>Fonction</th><th>Modèle</th><th>Entrée</th><th>Sortie</th><th>Total</th><th className="text-right">Coût réel</th></tr></thead><tbody>{usage?.requests.length ? usage.requests.map((event) => <tr key={event.id} className="border-b last:border-0"><td className="py-3 text-xs">{new Date(event.createdAt).toLocaleString("fr-FR")}</td><td><Badge>{event.feature}</Badge></td><td className="font-mono text-xs">{event.model}</td><td className="font-mono">{event.inputTokens.toLocaleString("fr-FR")}</td><td className="font-mono">{event.outputTokens.toLocaleString("fr-FR")}</td><td className="font-mono font-semibold">{event.totalTokens.toLocaleString("fr-FR")}</td><td className="text-right font-mono">{event.pricingStatus === "exact" && event.totalCostNanoUsd !== undefined ? usd.format(event.totalCostNanoUsd / 1_000_000_000) : "Tarif non configuré"}</td></tr>) : <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">Aucune requête IA enregistrée ce mois-ci.</td></tr>}</tbody></table></div>{usage?.unpricedRequestCount ? <p className="mt-3 text-xs text-amber-500">{usage.unpricedRequestCount} requête(s) utilisent un modèle sans tarif versionné. Ajoutez son prix dans model_pricing pour obtenir un coût exact.</p> : null}</CardContent></Card>
 
       {quoteOpen ? <EnterpriseQuoteDialog open onClose={() => setQuoteOpen(false)} /> : null}
     </div>

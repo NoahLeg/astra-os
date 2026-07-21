@@ -2,11 +2,16 @@
   "name": "ai-operating-system",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "npm@11.11.0",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
   "scripts": {
-    "dev": "node ./node_modules/next/dist/bin/next dev",
-    "build": "node ./node_modules/next/dist/bin/next build",
-    "start": "node ./node_modules/next/dist/bin/next start",
-    "lint": "node ./node_modules/eslint/bin/eslint.js"
+    "dev": "node ./scripts/run-with-system-ca.mjs ./node_modules/next/dist/bin/next dev",
+    "build": "node ./scripts/run-with-system-ca.mjs ./node_modules/next/dist/bin/next build",
+    "start": "node ./scripts/run-with-system-ca.mjs ./node_modules/next/dist/bin/next start",
+    "lint": "node ./scripts/run-with-system-ca.mjs ./node_modules/eslint/bin/eslint.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

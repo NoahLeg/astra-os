@@ -144,8 +144,8 @@ export function SubscriptionOnboardingPage() {
                   </p>
 
                   <div className="mt-5 rounded-lg border bg-muted/35 p-3">
-                    <p className="font-mono text-lg font-semibold">{plan.apiLimit.toLocaleString("fr-FR")}</p>
-                    <p className="text-xs text-muted-foreground">appels / mois · {plan.dailyApiLimit}/jour · {plan.maxAgents || "Aucun"} agent{plan.maxAgents > 1 ? "s" : ""}</p>
+                    <p className="font-mono text-lg font-semibold">{plan.monthlyTokenLimit.toLocaleString("fr-FR")} tokens</p>
+                    <p className="text-xs text-muted-foreground">{plan.dailyTokenLimit.toLocaleString("fr-FR")}/jour · {plan.maxAgents || "Aucun"} agent{plan.maxAgents > 1 ? "s" : ""}</p>
                     <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Users className="size-3" />{plan.maxMembers} siège{plan.maxMembers > 1 ? "s" : ""} inclus</p>
                   </div>
 

@@ -52,7 +52,7 @@ export function AdminBillingPanel({ workspaceId, billing, enterpriseQuotes = [],
   if (!billing) return <Card><CardContent className="flex min-h-56 items-center justify-center"><LoaderCircle className="size-6 animate-spin text-primary" /></CardContent></Card>;
 
   const { subscription, plans, invoices } = billing;
-  const usagePercent = Math.min(100, subscription.apiLimit ? (subscription.apiUsage / subscription.apiLimit) * 100 : 0);
+  const usagePercent = Math.min(100, subscription.monthlyTokenLimit ? (subscription.totalTokensUsed / subscription.monthlyTokenLimit) * 100 : 0);
   const targetPlan = plans.find((plan) => plan.id === planId);
 
   const changePlan = async () => {
@@ -135,15 +135,15 @@ export function AdminBillingPanel({ workspaceId, billing, enterpriseQuotes = [],
 
             <div className="mt-4 flex flex-wrap gap-2">
               {subscription.cancelAtPeriodEnd && subscription.managedByStripe ? <Button variant="outline" disabled={Boolean(busyAction)} onClick={() => void runAction({ action: "reactivate" }, "Abonnement réactivé")}>{busyAction === "reactivate" ? <LoaderCircle className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}Annuler la résiliation</Button> : null}
-              <Button variant="outline" disabled={Boolean(busyAction)} onClick={() => { if (window.confirm("Remettre le compteur API de cette entreprise à zéro ?")) void runAction({ action: "reset_usage" }, "Quota remis à zéro"); }}>{busyAction === "reset_usage" ? <LoaderCircle className="size-4 animate-spin" /> : <Zap className="size-4" />}Réinitialiser le quota</Button>
+              <Button variant="outline" disabled={Boolean(busyAction)} onClick={() => { if (window.confirm("Remettre les tokens et le coût IA cumulés de cette entreprise à zéro ?")) void runAction({ action: "reset_usage" }, "Usage IA remis à zéro"); }}>{busyAction === "reset_usage" ? <LoaderCircle className="size-4 animate-spin" /> : <Zap className="size-4" />}Réinitialiser l’usage</Button>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Consommation API</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Consommation IA</CardTitle></CardHeader>
           <CardContent>
-            <div className="flex items-end justify-between"><p className="font-mono text-3xl font-semibold">{subscription.apiUsage.toLocaleString("fr-FR")}</p><p className="font-mono text-sm text-muted-foreground">/ {subscription.apiLimit.toLocaleString("fr-FR")}</p></div>
+            <div className="flex items-end justify-between"><p className="font-mono text-3xl font-semibold">{subscription.totalTokensUsed.toLocaleString("fr-FR")}</p><p className="font-mono text-sm text-muted-foreground">/ {subscription.monthlyTokenLimit.toLocaleString("fr-FR")} tokens</p></div>
             <Progress value={usagePercent} className="mt-4 h-2" />
             <p className="mt-3 text-xs text-muted-foreground">Réinitialisation automatique le {new Date(subscription.usageResetAt).toLocaleDateString("fr-FR")}</p>
           </CardContent>
@@ -161,7 +161,7 @@ export function AdminBillingPanel({ workspaceId, billing, enterpriseQuotes = [],
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2"><p className="font-medium">{quote.companyName}</p><Badge className={quote.status === "approved" ? "bg-emerald-500/10 text-emerald-500" : quote.status === "declined" ? "bg-rose-500/10 text-rose-500" : quote.status === "contacted" ? "bg-indigo-500/10 text-indigo-500" : "bg-amber-500/10 text-amber-500"}>{quoteStatusLabels[quote.status]}</Badge></div>
                       <p className="mt-1 text-xs text-muted-foreground">{quote.contactName} · {quote.contactEmail}</p>
-                      <p className="mt-3 text-sm"><strong>{quote.seatCount} sièges</strong> · {quote.estimatedMonthlyCalls.toLocaleString("fr-FR")} appels IA estimés / mois</p>
+                      <p className="mt-3 text-sm"><strong>{quote.seatCount} sièges</strong> · {quote.estimatedMonthlyTokens.toLocaleString("fr-FR")} tokens IA estimés / mois</p>
                       {quote.message ? <p className="mt-2 text-sm leading-6 text-muted-foreground">{quote.message}</p> : null}
                       <p className="mt-2 font-mono text-[10px] text-muted-foreground">{new Date(quote.createdAt).toLocaleString("fr-FR")} · {quote.id}</p>
                     </div>

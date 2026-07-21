@@ -18,7 +18,7 @@ const quoteSchema = z.object({
   contactEmail: z.email("Adresse email invalide"),
   companyName: z.string().trim().min(2, "Indiquez le nom de l’entreprise").max(120),
   seatCount: z.number().int().min(2, "Deux sièges minimum").max(10_000),
-  estimatedMonthlyCalls: z.number().int().min(1_000, "Minimum 1 000 appels").max(10_000_000),
+  estimatedMonthlyTokens: z.number().int().min(100_000, "Minimum 100 000 tokens").max(10_000_000_000),
   message: z.string().trim().max(2_000).optional(),
 });
 
@@ -34,7 +34,7 @@ export function EnterpriseQuoteDialog({ open, onClose }: { open: boolean; onClos
       contactEmail: account?.email ?? "",
       companyName: account?.workspaceName ?? "",
       seatCount: 20,
-      estimatedMonthlyCalls: 25_000,
+      estimatedMonthlyTokens: 5_000_000,
       message: "",
     },
   });
@@ -70,9 +70,9 @@ export function EnterpriseQuoteDialog({ open, onClose }: { open: boolean; onClos
           {errors.companyName ? <p className="text-xs text-rose-500">{errors.companyName.message}</p> : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium">Nombre de sièges<div className="relative mt-2"><Users className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" type="number" min={2} max={10000} {...register("seatCount", { valueAsNumber: true })} /></div></label>
-            <label className="text-sm font-medium">Appels IA estimés / mois<div className="relative mt-2"><Gauge className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" type="number" min={1000} step={1000} {...register("estimatedMonthlyCalls", { valueAsNumber: true })} /></div></label>
+            <label className="text-sm font-medium">Tokens IA estimés / mois<div className="relative mt-2"><Gauge className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" type="number" min={100000} step={100000} {...register("estimatedMonthlyTokens", { valueAsNumber: true })} /></div></label>
           </div>
-          {(errors.seatCount || errors.estimatedMonthlyCalls) ? <p className="text-xs text-rose-500">{errors.seatCount?.message ?? errors.estimatedMonthlyCalls?.message}</p> : null}
+          {(errors.seatCount || errors.estimatedMonthlyTokens) ? <p className="text-xs text-rose-500">{errors.seatCount?.message ?? errors.estimatedMonthlyTokens?.message}</p> : null}
           <label className="text-sm font-medium">Contexte et exigences<Textarea className="mt-2 min-h-24" placeholder="SSO, sécurité, volume, accompagnement, calendrier de déploiement…" {...register("message")} /></label>
           {errors.message ? <p className="text-xs text-rose-500">{errors.message.message}</p> : null}
           <div className="rounded-lg border bg-muted/35 p-3 text-xs leading-5 text-muted-foreground">Aucun paiement n’est déclenché. Le plan Entreprise sera activé par un Super Admin après validation du devis et du nombre de sièges.</div>

@@ -26,10 +26,10 @@ interface AppState extends WorkspaceData {
   addProject: (project: Project) => Promise<void>;
   updateProject: (id: string, changes: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
-  updateMemory: (id: string, changes: Partial<MemoryItem>) => void;
-  toggleMemoryBlock: (id: string) => void;
-  addMemory: (memory: MemoryItem) => void;
-  deleteMemory: (id: string) => void;
+  updateMemory: (id: string, changes: Partial<MemoryItem>) => Promise<void>;
+  toggleMemoryBlock: (id: string) => Promise<void>;
+  addMemory: (memory: MemoryItem) => Promise<void>;
+  deleteMemory: (id: string) => Promise<void>;
   addAutomation: (automation: Automation) => Promise<void>;
   updateAutomation: (id: string, changes: Partial<Automation>) => Promise<void>;
   deleteAutomation: (id: string) => Promise<void>;
@@ -124,25 +124,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       ]);
     } catch (error) { set({ projects: previousProjects, goals: previousGoals, dataError: getErrorMessage(error) }); throw error; }
   },
-  updateMemory: (id, changes) => {
+  updateMemory: async (id, changes) => {
+    const previous = get().memories;
     set((state) => ({ memories: state.memories.map((item) => item.id === id ? { ...item, ...changes } : item) }));
-    void workspaceService.patch("memories", id, changes).catch((error) => set({ dataError: getErrorMessage(error) }));
+    try { await workspaceService.patch("memories", id, changes); } catch (error) { set({ memories: previous, dataError: getErrorMessage(error) }); throw error; }
   },
-  toggleMemoryBlock: (id) => {
+  toggleMemoryBlock: async (id) => {
     const memory = get().memories.find((item) => item.id === id);
     if (!memory) return;
+    const previous = get().memories;
     const changes: Partial<MemoryItem> = { blocked: !memory.blocked };
     set((state) => ({ memories: state.memories.map((item) => item.id === id ? { ...item, ...changes } : item) }));
-    void workspaceService.patch("memories", id, changes).catch((error) => set({ dataError: getErrorMessage(error) }));
+    try { await workspaceService.patch("memories", id, changes); } catch (error) { set({ memories: previous, dataError: getErrorMessage(error) }); throw error; }
   },
-  addMemory: (memory) => {
+  addMemory: async (memory) => {
     set((state) => ({ memories: [memory, ...state.memories] }));
-    void workspaceService.create("memories", memory).catch((error) => set({ dataError: getErrorMessage(error) }));
+    try { await workspaceService.create("memories", memory); } catch (error) { set((state) => ({ memories: state.memories.filter((item) => item.id !== memory.id), dataError: getErrorMessage(error) })); throw error; }
   },
-  deleteMemory: (id) => {
+  deleteMemory: async (id) => {
     const previous = get().memories;
     set((state) => ({ memories: state.memories.filter((item) => item.id !== id) }));
-    void workspaceService.delete("memories", id).catch((error) => set({ memories: previous, dataError: getErrorMessage(error) }));
+    try { await workspaceService.delete("memories", id); } catch (error) { set({ memories: previous, dataError: getErrorMessage(error) }); throw error; }
   },
   addAutomation: async (automation) => {
     set((state) => ({ automations: [automation, ...state.automations] }));

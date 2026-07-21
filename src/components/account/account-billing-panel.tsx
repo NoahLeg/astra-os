@@ -40,7 +40,7 @@ export function AccountBillingPanel() {
 
   const { subscription, plans, invoices } = billing;
   const plan = plans.find((item) => item.id === subscription.planId);
-  const usagePercent = Math.min(100, subscription.apiLimit ? (subscription.apiUsage / subscription.apiLimit) * 100 : 0);
+  const usagePercent = Math.min(100, subscription.monthlyTokenLimit ? (subscription.totalTokensUsed / subscription.monthlyTokenLimit) * 100 : 0);
   const monthlyAmount = plan?.quoteOnly
     ? "Sur devis"
     : new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format((plan?.monthlyPriceCents ?? 0) / 100);
@@ -79,8 +79,8 @@ export function AccountBillingPanel() {
           <CardHeader><CardTitle className="flex items-center gap-2"><Zap className="size-4 text-violet-500" />Utilisation du mois</CardTitle></CardHeader>
           <CardContent>
             <div className="flex items-end justify-between">
-              <div><p className="font-mono text-3xl font-semibold">{subscription.apiUsage.toLocaleString("fr-FR")}</p><p className="text-xs text-muted-foreground">appels consommés</p></div>
-              <p className="font-mono text-sm text-muted-foreground">/ {subscription.apiLimit.toLocaleString("fr-FR")}</p>
+              <div><p className="font-mono text-3xl font-semibold">{subscription.totalTokensUsed.toLocaleString("fr-FR")}</p><p className="text-xs text-muted-foreground">tokens consommés</p></div>
+              <p className="font-mono text-sm text-muted-foreground">/ {subscription.monthlyTokenLimit.toLocaleString("fr-FR")}</p>
             </div>
             <Progress value={usagePercent} className="mt-4 h-2" />
             <p className="mt-3 text-xs text-muted-foreground">Réinitialisation le {new Date(subscription.usageResetAt).toLocaleDateString("fr-FR")}</p>

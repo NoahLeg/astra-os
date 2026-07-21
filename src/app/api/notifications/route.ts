@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { getWorkspaceSubscription } from "@/lib/server/billing";
-import { getAccountProfile, getWorkspaceData, updateAccountProfile } from "@/lib/server/database";
+import { getAccountProfile, getWorkspaceConfiguration, getWorkspaceData, updateAccountProfile } from "@/lib/server/database";
 import { buildNotifications } from "@/lib/server/notifications";
 import { listTaskCollaborationNotifications } from "@/lib/server/task-collaboration";
 
@@ -15,13 +15,14 @@ const mutationSchema = z.discriminatedUnion("action", [
 ]);
 
 async function loadNotificationData(userId: string, email: string) {
-  const [workspace, subscription, profile] = await Promise.all([
+  const [workspace, subscription, profile, configuration] = await Promise.all([
     getWorkspaceData(userId),
     getWorkspaceSubscription(userId),
     getAccountProfile(userId, email),
+    getWorkspaceConfiguration(userId),
   ]);
   if (!profile) throw new Error("Profil introuvable");
-  const baseNotifications = buildNotifications(workspace, subscription, profile.preferences.readNotificationIds);
+  const baseNotifications = buildNotifications(workspace, subscription, profile.preferences.readNotificationIds, configuration?.settings);
   const collaborationNotifications = subscription.features.includes("collaboration")
     ? await listTaskCollaborationNotifications(subscription.workspaceId, userId, workspace)
     : [];

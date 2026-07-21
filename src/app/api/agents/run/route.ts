@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createToolApproval, buildMemoryContext, generateAgentTask } from "@/lib/server/agent-runtime";
 import { getAuthenticatedUser } from "@/lib/server/auth";
-import { BillingAccessError, consumeApiUsage, enforceAgentQuota, getWorkspaceSubscription } from "@/lib/server/billing";
+import { BillingAccessError, enforceAgentQuota, getWorkspaceSubscription } from "@/lib/server/billing";
 import { getWorkspaceConfiguration, getWorkspaceData, hasWorkspaceAccess, patchWorkspaceRecord, saveWorkspaceRecord } from "@/lib/server/database";
 import { getOpenAIConfiguration, OpenAIRequestError } from "@/lib/server/openai";
 import type { ActivityEvent } from "@/types";
@@ -37,15 +37,15 @@ export async function POST(request: Request) {
     if (!agent) return NextResponse.json({ error: "Agent introuvable" }, { status: 404 });
     if (!agent.enabled) return NextResponse.json({ error: "Activez cet agent avant de lui confier une tâche." }, { status: 409 });
 
-    await consumeApiUsage(user.id, "agents", 1);
     const configuration = await getOpenAIConfiguration(user.id);
     const taskResult = await generateAgentTask({
       userId: user.id,
       agent,
       instruction: parsed.data.instruction,
       workspace,
-      memoryContext: buildMemoryContext(workspace, Boolean(workspaceConfiguration?.settings.memoryEnabled)),
+      memoryContext: buildMemoryContext(workspace, Boolean(workspaceConfiguration?.settings.memoryEnabled), parsed.data.instruction),
       configuration,
+      feature: "agents",
     });
     const approval = createToolApproval({ agent, instruction: parsed.data.instruction, result: taskResult, model: configuration.model });
     const duration = Math.max(1, Math.round((Date.now() - startedAt) / 1_000));
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       patchWorkspaceRecord("agents", agent.id, agentChanges, user.id),
       ...(approval ? [saveWorkspaceRecord("approvals", approval, user.id)] : []),
     ]);
-    return NextResponse.json({ result: taskResult.result, confidence: taskResult.confidence, model: configuration.model, activity, approval });
+    return NextResponse.json({ result: taskResult.result, confidence: taskResult.confidence, model: taskResult.usage?.model ?? configuration.model, activity, approval, usage: taskResult.usage });
   } catch (error) {
     if (error instanceof BillingAccessError || error instanceof OpenAIRequestError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: error instanceof Error ? error.message : "L'agent n'a pas pu terminer la tâche." }, { status: 502 });

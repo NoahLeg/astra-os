@@ -7,8 +7,6 @@ const scopes: Record<GoogleConnectionId, string[]> = {
   gmail: [
     "openid",
     "email",
-    "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/gmail.compose",
     "https://www.googleapis.com/auth/gmail.modify",
   ],
   calendar: [
@@ -26,6 +24,12 @@ const scopes: Record<GoogleConnectionId, string[]> = {
 };
 
 export const googleWorkspaceScopes = Array.from(new Set(googleConnectionIds.flatMap((connectionId) => scopes[connectionId])));
+
+export function getMissingGoogleWorkspaceScopes(grantedScope?: string) {
+  if (!grantedScope) return googleWorkspaceScopes.filter((scope) => scope.startsWith("https://"));
+  const granted = new Set(grantedScope.split(/\s+/).filter(Boolean));
+  return googleWorkspaceScopes.filter((scope) => scope.startsWith("https://") && !granted.has(scope));
+}
 
 function getCredentials() {
   const clientId = process.env.GOOGLE_CLIENT_ID;

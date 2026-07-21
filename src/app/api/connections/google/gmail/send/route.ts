@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       tool: "Gmail",
     };
     await saveWorkspaceRecord("activities", activity, user.id);
-    return NextResponse.json({ success: true, messageId: execution.externalId });
+    return NextResponse.json({ success: true, messageId: "externalId" in execution ? execution.externalId : undefined });
   } catch (error) {
     if (error instanceof BillingAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Envoi Gmail impossible" }, { status: 502 });

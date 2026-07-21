@@ -15,8 +15,8 @@ export async function POST(request: Request) {
     const credential = await getWorkspaceProviderSecret({ workspaceId: parsed.data.workspaceId, provider: "openai", actorUserId: admin.id });
     if (!credential) return NextResponse.json({ error: "Aucune clé OpenAI trouvée pour cette entreprise." }, { status: 404 });
     const model = process.env.OPENAI_MODEL?.trim() || "gpt-5.4-mini";
-    await createOpenAIResponse({ apiKey: credential.secret, baseUrl: credential.baseUrl, model, instructions: "Réponds uniquement par OK.", prompt: "Test de connexion Astra.", maxOutputTokens: 20 });
-    return NextResponse.json({ success: true, model });
+    const response = await createOpenAIResponse({ apiKey: credential.secret, baseUrl: credential.baseUrl, model, instructions: "Réponds uniquement par OK.", prompt: "Test de connexion Astra.", maxOutputTokens: 20, tracking: { userId: admin.id, workspaceId: parsed.data.workspaceId, feature: "assistant", metadata: { source: "super_admin_provider_test" } } });
+    return NextResponse.json({ success: true, model, usage: response.usage });
   } catch (error) {
     const status = error instanceof OpenAIRequestError ? error.status : 502;
     return NextResponse.json({ error: error instanceof Error ? error.message : "Test OpenAI impossible" }, { status });

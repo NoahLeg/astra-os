@@ -15,6 +15,69 @@ const mutationSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("delete"), collection: collectionSchema, id: z.string().min(1) }),
 ]);
 
+const memoryRecordSchema = z.object({
+  id: z.string().min(1).max(100),
+  type: z.enum(["fact", "project", "person", "decision", "document", "habit", "relation"]),
+  title: z.string().trim().min(1).max(200),
+  content: z.string().trim().min(1).max(20_000),
+  source: z.string().trim().min(1).max(300),
+  createdAt: z.string().datetime({ offset: true }),
+  confidence: z.number().min(0).max(100),
+  relations: z.array(z.string().trim().min(1).max(200)).max(50),
+  blocked: z.boolean(),
+}).strict();
+
+const automationNodeSchema = z.object({
+  id: z.string().min(1).max(100),
+  type: z.enum(["trigger", "condition", "agent", "action", "approval", "result"]),
+  label: z.string().trim().min(1).max(500),
+  config: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
+}).strict();
+
+const automationRecordSchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().min(2).max(2_000),
+  status: z.enum(["active", "paused", "completed", "pending", "error", "offline", "suggested"]),
+  trigger: z.string().trim().min(1).max(500),
+  conditions: z.array(z.string().max(500)).max(20),
+  actions: z.array(z.string().trim().min(1).max(12_000)).min(1).max(20),
+  tools: z.array(z.string().max(100)).max(30),
+  autonomyLevel: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+  successRate: z.number().min(0).max(100),
+  nodes: z.array(automationNodeSchema).min(4).max(30),
+  lastRun: z.string().max(100).optional(), nextRun: z.string().max(100).optional(), runCount: z.number().int().min(0).optional(),
+  agentId: z.string().max(80).optional(), instruction: z.string().trim().min(8).max(12_000).optional(),
+  preferredTool: z.enum(["auto", "send_email", "create_email_draft", "organize_email", "smart_organize_gmail", "create_calendar_event", "create_drive_file"]).optional(),
+  lastResult: z.string().max(20_000).optional(), lastConfidence: z.number().min(0).max(100).optional(),
+  lastStatus: z.enum(["completed", "approval", "error", "cancelled"]).optional(),
+  schedule: z.enum(["hourly", "daily", "weekly"]).optional(), timeZone: z.string().max(100).optional(),
+  retryPolicy: z.object({ maximumAttempts: z.number().int().min(1).max(5), backoffSeconds: z.number().int().min(0).max(30) }).strict().optional(),
+}).strict().superRefine((automation, context) => {
+  if (new Set(automation.nodes.map((node) => node.id)).size !== automation.nodes.length) context.addIssue({ code: "custom", path: ["nodes"], message: "Les identifiants de blocs doivent être uniques." });
+  for (const type of ["trigger", "agent", "action", "result"] as const) {
+    if (!automation.nodes.some((node) => node.type === type)) context.addIssue({ code: "custom", path: ["nodes"], message: `Bloc ${type} requis.` });
+    if (automation.nodes.filter((node) => node.type === type).length > 1) context.addIssue({ code: "custom", path: ["nodes"], message: `Un seul bloc ${type} est autorisé.` });
+  }
+  if (automation.nodes.filter((node) => node.type === "agent").length !== 1) context.addIssue({ code: "custom", path: ["nodes"], message: "Un seul bloc agent est autorisé." });
+  if (automation.nodes.filter((node) => node.type === "approval").length > 1) context.addIssue({ code: "custom", path: ["nodes"], message: "Un seul bloc de validation est autorisé." });
+  const positions = Object.fromEntries(automation.nodes.map((node, index) => [node.type, index]));
+  if (!(positions.trigger < positions.agent && positions.agent < positions.action && positions.action < positions.result)) context.addIssue({ code: "custom", path: ["nodes"], message: "L’ordre requis est déclencheur, agent, action, résultat." });
+});
+
+function validateSpecializedMutation(mutation: z.infer<typeof mutationSchema>) {
+  if (mutation.operation === "delete") return null;
+  const value = mutation.operation === "create" ? mutation.record : mutation.changes;
+  const schema = mutation.collection === "memories"
+    ? mutation.operation === "create" ? memoryRecordSchema : memoryRecordSchema.omit({ id: true, createdAt: true }).partial().strict()
+    : mutation.collection === "automations"
+      ? mutation.operation === "create" ? automationRecordSchema : automationRecordSchema.safeExtend({}).partial().strict()
+      : null;
+  if (!schema) return null;
+  const result = schema.safeParse(value);
+  return result.success ? null : result.error.flatten();
+}
+
 function operatorCanMutate(mutation: z.infer<typeof mutationSchema>) {
   if (["goals", "projects", "memories", "automations", "missions"].includes(mutation.collection)) return true;
   if (mutation.operation !== "patch") return false;
@@ -64,6 +127,11 @@ export async function POST(request: Request) {
   }
   const parsed = mutationSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Mutation invalide", details: parsed.error.flatten() }, { status: 400 });
+  if (parsed.data.operation === "patch" && typeof parsed.data.changes.id === "string" && parsed.data.changes.id !== parsed.data.id) {
+    return NextResponse.json({ error: "L’identifiant d’un enregistrement ne peut pas être modifié" }, { status: 400 });
+  }
+  const validationError = validateSpecializedMutation(parsed.data);
+  if (validationError) return NextResponse.json({ error: "Données métier invalides", details: validationError }, { status: 400 });
 
   try {
     const context = await getUserWorkspaceContext(user.id);
