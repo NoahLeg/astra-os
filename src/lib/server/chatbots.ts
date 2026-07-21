@@ -3,11 +3,12 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { getAIUsageEventsByIds } from "@/lib/server/ai-usage";
 import { getLocalDatabase, getWorkspaceIdForUser, isSupabaseDatabaseEnabled, serverDatabaseRequest } from "@/lib/server/database";
-import type { Chatbot, ChatbotConversation, ChatbotKnowledge, ChatbotMessage } from "@/types";
+import type { Chatbot, ChatbotCitation, ChatbotConversation, ChatbotKnowledge, ChatbotMessage } from "@/types";
 
 interface ChatbotRow {
   id: string; workspace_id?: string; name: string; slug: string; description: string; provider: "openai"; model: string;
-  system_prompt: string; memory_enabled: boolean | number; is_system: boolean | number; status: "active" | "paused"; created_at: string; updated_at: string;
+  system_prompt: string; memory_enabled: boolean | number; learning_enabled: boolean | number; web_enabled: boolean | number;
+  is_system: boolean | number; status: "active" | "paused"; created_at: string; updated_at: string;
 }
 
 interface KnowledgeRow {
@@ -20,7 +21,12 @@ interface ConversationRow {
 
 interface MessageRow {
   id: string; conversation_id: string; usage_event_id?: string; role: "system" | "user" | "assistant"; content: string;
-  status: "pending" | "completed" | "failed"; error_message?: string; created_at: string;
+  status: "pending" | "completed" | "failed"; error_message?: string; citations?: string | ChatbotCitation[]; created_at: string;
+}
+
+function ensureLocalColumn(table: string, column: string, definition: string) {
+  const columns = getLocalDatabase().prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((item) => item.name === column)) getLocalDatabase().exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 function ensureLocalChatbotSchema() {
@@ -28,6 +34,7 @@ function ensureLocalChatbotSchema() {
     CREATE TABLE IF NOT EXISTS chatbots (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, description TEXT NOT NULL,
       provider TEXT NOT NULL, model TEXT NOT NULL, system_prompt TEXT NOT NULL, memory_enabled INTEGER NOT NULL,
+      learning_enabled INTEGER NOT NULL DEFAULT 1, web_enabled INTEGER NOT NULL DEFAULT 0,
       is_system INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS chatbot_knowledge (
@@ -41,16 +48,19 @@ function ensureLocalChatbotSchema() {
     CREATE TABLE IF NOT EXISTS chatbot_messages (
       id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES chatbot_conversations(id) ON DELETE CASCADE,
       usage_event_id TEXT, role TEXT NOT NULL, content TEXT NOT NULL, status TEXT NOT NULL,
-      error_message TEXT, created_at TEXT NOT NULL
+      error_message TEXT, citations TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS chatbot_knowledge_chatbot_idx ON chatbot_knowledge(chatbot_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS chatbot_conversations_chatbot_idx ON chatbot_conversations(chatbot_id, last_message_at DESC);
     CREATE INDEX IF NOT EXISTS chatbot_messages_conversation_idx ON chatbot_messages(conversation_id, created_at ASC);
   `);
+  ensureLocalColumn("chatbots", "learning_enabled", "INTEGER NOT NULL DEFAULT 1");
+  ensureLocalColumn("chatbots", "web_enabled", "INTEGER NOT NULL DEFAULT 0");
+  ensureLocalColumn("chatbot_messages", "citations", "TEXT NOT NULL DEFAULT '[]'");
 }
 
 function toChatbot(row: ChatbotRow): Chatbot {
-  return { id: row.id, name: row.name, slug: row.slug, description: row.description, provider: row.provider, model: row.model, systemPrompt: row.system_prompt, memoryEnabled: Boolean(row.memory_enabled), isSystem: Boolean(row.is_system), status: row.status, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, description: row.description, provider: row.provider, model: row.model, systemPrompt: row.system_prompt, memoryEnabled: Boolean(row.memory_enabled), learningEnabled: Boolean(row.learning_enabled), webEnabled: Boolean(row.web_enabled), isSystem: Boolean(row.is_system), status: row.status, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 function toKnowledge(row: KnowledgeRow): ChatbotKnowledge {
@@ -62,7 +72,8 @@ function toConversation(row: ConversationRow): ChatbotConversation {
 }
 
 function toMessage(row: MessageRow, usage?: ChatbotMessage["usage"]): ChatbotMessage {
-  return { id: row.id, conversationId: row.conversation_id, role: row.role, content: row.content, status: row.status, errorMessage: row.error_message, usageEventId: row.usage_event_id, usage, createdAt: row.created_at };
+  const citations = Array.isArray(row.citations) ? row.citations : JSON.parse(row.citations || "[]") as ChatbotCitation[];
+  return { id: row.id, conversationId: row.conversation_id, role: row.role, content: row.content, status: row.status, errorMessage: row.error_message, usageEventId: row.usage_event_id, citations, usage, createdAt: row.created_at };
 }
 
 async function toMessages(userId: string, rows: MessageRow[]) {
@@ -79,7 +90,7 @@ export async function listChatbots(userId: string, includeSystem = false) {
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     if (!workspaceId) throw new Error("Espace de travail introuvable.");
-    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}${includeSystem ? "" : "&is_system=eq.false"}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,is_system,status,created_at,updated_at&order=updated_at.desc`);
+    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}${includeSystem ? "" : "&is_system=eq.false"}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,web_enabled,is_system,status,created_at,updated_at&order=updated_at.desc`);
     return rows.map(toChatbot);
   }
   ensureLocalChatbotSchema();
@@ -91,7 +102,7 @@ export async function getChatbot(userId: string, chatbotId: string) {
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     if (!workspaceId) return undefined;
-    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}&id=eq.${encodeURIComponent(chatbotId)}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,is_system,status,created_at,updated_at&limit=1`);
+    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}&id=eq.${encodeURIComponent(chatbotId)}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,web_enabled,is_system,status,created_at,updated_at&limit=1`);
     return rows[0] ? toChatbot(rows[0]) : undefined;
   }
   ensureLocalChatbotSchema();
@@ -99,12 +110,12 @@ export async function getChatbot(userId: string, chatbotId: string) {
   return row ? toChatbot(row) : undefined;
 }
 
-export async function createChatbot(userId: string, input: { name: string; description: string; model: string; systemPrompt: string; memoryEnabled: boolean; isSystem?: boolean; slug?: string }) {
+export async function createChatbot(userId: string, input: { name: string; description: string; model: string; systemPrompt: string; memoryEnabled: boolean; learningEnabled?: boolean; webEnabled?: boolean; isSystem?: boolean; slug?: string }) {
   const id = randomUUID();
   const now = new Date().toISOString();
   const baseSlug = input.slug ? slugify(input.slug) : slugify(input.name);
   const slug = input.isSystem ? baseSlug : `${baseSlug}-${id.slice(0, 6)}`;
-  const row: ChatbotRow = { id, name: input.name, slug, description: input.description, provider: "openai", model: input.model, system_prompt: input.systemPrompt, memory_enabled: input.memoryEnabled, is_system: Boolean(input.isSystem), status: "active", created_at: now, updated_at: now };
+  const row: ChatbotRow = { id, name: input.name, slug, description: input.description, provider: "openai", model: input.model, system_prompt: input.systemPrompt, memory_enabled: input.memoryEnabled, learning_enabled: input.learningEnabled ?? input.memoryEnabled, web_enabled: input.webEnabled ?? false, is_system: Boolean(input.isSystem), status: "active", created_at: now, updated_at: now };
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     if (!workspaceId) throw new Error("Espace de travail introuvable.");
@@ -113,14 +124,14 @@ export async function createChatbot(userId: string, input: { name: string; descr
     return toChatbot(rows[0]);
   }
   ensureLocalChatbotSchema();
-  getLocalDatabase().prepare("INSERT INTO chatbots (id,name,slug,description,provider,model,system_prompt,memory_enabled,is_system,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").run(id, row.name, row.slug, row.description, row.provider, row.model, row.system_prompt, row.memory_enabled ? 1 : 0, row.is_system ? 1 : 0, row.status, now, now);
+  getLocalDatabase().prepare("INSERT INTO chatbots (id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,web_enabled,is_system,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id, row.name, row.slug, row.description, row.provider, row.model, row.system_prompt, row.memory_enabled ? 1 : 0, row.learning_enabled ? 1 : 0, row.web_enabled ? 1 : 0, row.is_system ? 1 : 0, row.status, now, now);
   return toChatbot(row);
 }
 
-export async function updateChatbot(userId: string, chatbotId: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "status">>) {
+export async function updateChatbot(userId: string, chatbotId: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "webEnabled" | "status">>) {
   const chatbot = await getChatbot(userId, chatbotId);
   if (!chatbot) throw new Error("Chatbot introuvable.");
-  const payload = { ...(changes.name !== undefined ? { name: changes.name } : {}), ...(changes.description !== undefined ? { description: changes.description } : {}), ...(changes.model !== undefined ? { model: changes.model } : {}), ...(changes.systemPrompt !== undefined ? { system_prompt: changes.systemPrompt } : {}), ...(changes.memoryEnabled !== undefined ? { memory_enabled: changes.memoryEnabled } : {}), ...(changes.status !== undefined ? { status: changes.status } : {}), updated_at: new Date().toISOString() };
+  const payload = { ...(changes.name !== undefined ? { name: changes.name } : {}), ...(changes.description !== undefined ? { description: changes.description } : {}), ...(changes.model !== undefined ? { model: changes.model } : {}), ...(changes.systemPrompt !== undefined ? { system_prompt: changes.systemPrompt } : {}), ...(changes.memoryEnabled !== undefined ? { memory_enabled: changes.memoryEnabled } : {}), ...(changes.learningEnabled !== undefined ? { learning_enabled: changes.learningEnabled } : {}), ...(changes.webEnabled !== undefined ? { web_enabled: changes.webEnabled } : {}), ...(changes.status !== undefined ? { status: changes.status } : {}), updated_at: new Date().toISOString() };
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId!)}&id=eq.${encodeURIComponent(chatbotId)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(payload) });
@@ -129,7 +140,7 @@ export async function updateChatbot(userId: string, chatbotId: string, changes: 
   }
   ensureLocalChatbotSchema();
   const updated = { ...chatbot, ...changes, updatedAt: payload.updated_at };
-  getLocalDatabase().prepare("UPDATE chatbots SET name=?,description=?,model=?,system_prompt=?,memory_enabled=?,status=?,updated_at=? WHERE id=?").run(updated.name, updated.description, updated.model, updated.systemPrompt, updated.memoryEnabled ? 1 : 0, updated.status, updated.updatedAt, chatbotId);
+  getLocalDatabase().prepare("UPDATE chatbots SET name=?,description=?,model=?,system_prompt=?,memory_enabled=?,learning_enabled=?,web_enabled=?,status=?,updated_at=? WHERE id=?").run(updated.name, updated.description, updated.model, updated.systemPrompt, updated.memoryEnabled ? 1 : 0, updated.learningEnabled ? 1 : 0, updated.webEnabled ? 1 : 0, updated.status, updated.updatedAt, chatbotId);
   return updated;
 }
 
@@ -164,11 +175,11 @@ export async function listChatbotKnowledge(userId: string, chatbotId: string) {
   return (getLocalDatabase().prepare("SELECT * FROM chatbot_knowledge WHERE chatbot_id = ? ORDER BY updated_at DESC").all(chatbotId) as unknown as KnowledgeRow[]).map(toKnowledge);
 }
 
-export async function createChatbotKnowledge(userId: string, chatbotId: string, input: { title: string; content: string; source?: string }) {
+export async function createChatbotKnowledge(userId: string, chatbotId: string, input: { title: string; content: string; source?: string; blocked?: boolean }) {
   const chatbot = await getChatbot(userId, chatbotId);
   if (!chatbot) throw new Error("Chatbot introuvable.");
   const id = randomUUID(); const now = new Date().toISOString();
-  const row: KnowledgeRow = { id, chatbot_id: chatbotId, title: input.title, content: input.content, source: input.source || "Saisie utilisateur", blocked: false, created_at: now, updated_at: now };
+  const row: KnowledgeRow = { id, chatbot_id: chatbotId, title: input.title, content: input.content, source: input.source || "Saisie utilisateur", blocked: Boolean(input.blocked), created_at: now, updated_at: now };
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     const rows = await serverDatabaseRequest<KnowledgeRow[]>("chatbot_knowledge", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ ...row, workspace_id: workspaceId }) });
@@ -176,7 +187,7 @@ export async function createChatbotKnowledge(userId: string, chatbotId: string, 
     return toKnowledge(rows[0]);
   }
   ensureLocalChatbotSchema();
-  getLocalDatabase().prepare("INSERT INTO chatbot_knowledge (id,chatbot_id,title,content,source,blocked,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").run(id, chatbotId, row.title, row.content, row.source, 0, now, now);
+  getLocalDatabase().prepare("INSERT INTO chatbot_knowledge (id,chatbot_id,title,content,source,blocked,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").run(id, chatbotId, row.title, row.content, row.source, row.blocked ? 1 : 0, now, now);
   return toKnowledge(row);
 }
 
@@ -228,7 +239,7 @@ export async function getConversationMessages(userId: string, chatbotId: string,
   const conversations = await listConversations(userId, chatbotId); if (!conversations.some((item) => item.id === conversationId)) throw new Error("Conversation introuvable.");
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
-    const rows = await serverDatabaseRequest<MessageRow[]>(`chatbot_messages?workspace_id=eq.${encodeURIComponent(workspaceId!)}&conversation_id=eq.${encodeURIComponent(conversationId)}&select=id,conversation_id,usage_event_id,role,content,status,error_message,created_at&order=created_at.asc`);
+    const rows = await serverDatabaseRequest<MessageRow[]>(`chatbot_messages?workspace_id=eq.${encodeURIComponent(workspaceId!)}&conversation_id=eq.${encodeURIComponent(conversationId)}&select=id,conversation_id,usage_event_id,role,content,status,error_message,citations,created_at&order=created_at.asc`);
     return toMessages(userId, rows);
   }
   ensureLocalChatbotSchema(); return toMessages(userId, getLocalDatabase().prepare("SELECT * FROM chatbot_messages WHERE conversation_id = ? ORDER BY created_at ASC").all(conversationId) as unknown as MessageRow[]);
@@ -244,16 +255,16 @@ export async function createChatbotMessage(userId: string, conversationId: strin
   ensureLocalChatbotSchema(); getLocalDatabase().prepare("INSERT INTO chatbot_messages (id,conversation_id,role,content,status,created_at) VALUES (?,?,?,?,?,?)").run(id, conversationId, input.role, input.content, input.status ?? "completed", now); return { id, conversationId, role: input.role, content: input.content, status: input.status ?? "completed", createdAt: now };
 }
 
-export async function updateChatbotMessage(userId: string, messageId: string, changes: { content?: string; status?: ChatbotMessage["status"]; errorMessage?: string | null; usageEventId?: string }) {
-  const payload = { ...(changes.content !== undefined ? { content: changes.content } : {}), ...(changes.status !== undefined ? { status: changes.status } : {}), ...(changes.errorMessage !== undefined ? { error_message: changes.errorMessage } : {}), ...(changes.usageEventId !== undefined ? { usage_event_id: changes.usageEventId } : {}) };
+export async function updateChatbotMessage(userId: string, messageId: string, changes: { content?: string; status?: ChatbotMessage["status"]; errorMessage?: string | null; usageEventId?: string; citations?: ChatbotCitation[] }) {
+  const payload = { ...(changes.content !== undefined ? { content: changes.content } : {}), ...(changes.status !== undefined ? { status: changes.status } : {}), ...(changes.errorMessage !== undefined ? { error_message: changes.errorMessage } : {}), ...(changes.usageEventId !== undefined ? { usage_event_id: changes.usageEventId } : {}), ...(changes.citations !== undefined ? { citations: changes.citations } : {}) };
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId); const rows = await serverDatabaseRequest<MessageRow[]>(`chatbot_messages?workspace_id=eq.${encodeURIComponent(workspaceId!)}&id=eq.${encodeURIComponent(messageId)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(payload) });
     if (!rows[0]) throw new Error("Le message n'a pas pu être mis à jour."); return toMessage(rows[0]);
   }
   ensureLocalChatbotSchema();
   const current = getLocalDatabase().prepare("SELECT * FROM chatbot_messages WHERE id = ?").get(messageId) as unknown as MessageRow | undefined; if (!current) throw new Error("Message introuvable.");
-  const updated = { ...current, content: changes.content ?? current.content, status: changes.status ?? current.status, error_message: changes.errorMessage === undefined ? current.error_message : changes.errorMessage ?? undefined, usage_event_id: changes.usageEventId ?? current.usage_event_id };
-  getLocalDatabase().prepare("UPDATE chatbot_messages SET content=?,status=?,error_message=?,usage_event_id=? WHERE id=?").run(updated.content, updated.status, updated.error_message ?? null, updated.usage_event_id ?? null, messageId); return toMessage(updated);
+  const updated = { ...current, content: changes.content ?? current.content, status: changes.status ?? current.status, error_message: changes.errorMessage === undefined ? current.error_message : changes.errorMessage ?? undefined, usage_event_id: changes.usageEventId ?? current.usage_event_id, citations: changes.citations ?? current.citations ?? [] };
+  getLocalDatabase().prepare("UPDATE chatbot_messages SET content=?,status=?,error_message=?,usage_event_id=?,citations=? WHERE id=?").run(updated.content, updated.status, updated.error_message ?? null, updated.usage_event_id ?? null, JSON.stringify(updated.citations), messageId); return toMessage(updated);
 }
 
 export async function touchConversation(userId: string, conversationId: string, title?: string) {

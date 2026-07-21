@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { buildMemoryContext } from "@/lib/server/agent-runtime";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { BillingAccessError, requireSubscriptionFeature } from "@/lib/server/billing";
+import { extractConversationLearnings } from "@/lib/server/chatbot-learning";
 import {
   buildKnowledgeContext,
+  createChatbotKnowledge,
   createChatbotMessage,
   createConversation,
   getChatbot,
@@ -69,8 +71,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .map((message) => `${message.role === "user" ? "Utilisateur" : "Assistant"}: ${message.content}`)
       .join("\n\n")
       .slice(-50_000);
-    const memoryContext = buildMemoryContext(workspace, chatbot.memoryEnabled && Boolean(workspaceConfiguration?.settings.memoryEnabled), parsed.data.message);
-    const knowledgeContext = buildKnowledgeContext(knowledge, parsed.data.message);
+    const contextEnabled = chatbot.memoryEnabled && Boolean(workspaceConfiguration?.settings.memoryEnabled);
+    const memoryContext = buildMemoryContext(workspace, contextEnabled, parsed.data.message);
+    const knowledgeContext = contextEnabled ? buildKnowledgeContext(knowledge, parsed.data.message) : "Contexte désactivé pour ce chatbot.";
     const response = await createOpenAIResponse({
       ...configuration,
       model: chatbot.model,
@@ -84,6 +87,7 @@ ${knowledgeContext}
 </chatbot_knowledge>`,
       prompt: history || parsed.data.message,
       maxOutputTokens: 1_800,
+      webSearch: chatbot.webEnabled,
       tracking: { userId: user.id, feature: "chatbots", metadata: { chatbotId, conversationId: conversation.id } },
     });
     const message = await updateChatbotMessage(user.id, assistantMessageId, {
@@ -91,14 +95,40 @@ ${knowledgeContext}
       status: "completed",
       errorMessage: null,
       usageEventId: response.usage?.id,
+      citations: response.citations,
     });
     const title = messages.filter((item) => item.role === "user").length === 1 ? parsed.data.message.slice(0, 80) : undefined;
     await touchConversation(user.id, conversation.id, title);
+    const learningScheduled = contextEnabled && chatbot.learningEnabled && Boolean(workspaceConfiguration?.settings.allowMemoryLearning);
+    if (learningScheduled) {
+      after(async () => {
+        try {
+          const learnings = await extractConversationLearnings({
+            ...configuration,
+            model: chatbot.model,
+            userId: user.id,
+            workspaceId: configuration.workspaceId,
+            chatbotId: chatbot.id,
+            userMessage: parsed.data.message,
+            assistantMessage: response.content,
+            existingKnowledge: knowledge,
+          });
+          await Promise.all(learnings.map((learning) => createChatbotKnowledge(user.id, chatbot.id, {
+            ...learning,
+            source: "Apprentissage conversationnel",
+            blocked: Boolean(workspaceConfiguration?.settings.memoryApprovalRequired),
+          })));
+        } catch (learningError) {
+          console.error("Chatbot context learning failed", learningError);
+        }
+      });
+    }
     return NextResponse.json({
       conversation: { ...conversation, ...(title ? { title } : {}) },
       message: { ...message, usage: response.usage },
       usage: response.usage,
       model: response.model,
+      learningScheduled,
     });
   } catch (error) {
     if (conversationId) {

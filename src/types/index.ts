@@ -633,6 +633,11 @@ export interface ChatbotConversation {
   updatedAt: string;
 }
 
+export interface ChatbotCitation {
+  url: string;
+  title: string;
+}
+
 export interface ChatbotMessage {
   id: string;
   conversationId: string;
@@ -641,6 +646,7 @@ export interface ChatbotMessage {
   status: "pending" | "completed" | "failed";
   errorMessage?: string;
   usageEventId?: string;
+  citations?: ChatbotCitation[];
   createdAt: string;
   usage?: AIUsageEvent;
 }
@@ -654,6 +660,8 @@ export interface Chatbot {
   model: string;
   systemPrompt: string;
   memoryEnabled: boolean;
+  learningEnabled: boolean;
+  webEnabled: boolean;
   isSystem: boolean;
   status: "active" | "paused";
   createdAt: string;

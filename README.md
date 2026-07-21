@@ -155,7 +155,7 @@ En présence de `SUPABASE_URL` et `SUPABASE_SECRET_KEY`, la couche serveur utili
 
 La table active RLS et retire l’accès aux rôles `anon` et `authenticated`. Seules les routes serveur disposant de la clé secrète peuvent lire ou modifier les données.
 
-Pour une base déjà créée, vérifiez l’historique puis appliquez toutes les migrations locales manquantes, notamment `20260721145324_add_production_ai_usage_automations_chatbots.sql` :
+Pour une base déjà créée, vérifiez l’historique puis appliquez toutes les migrations locales manquantes, notamment `20260721145324_add_production_ai_usage_automations_chatbots.sql` et `20260721185912_add_chatbot_context_learning_and_web.sql` :
 
 ```bash
 npx supabase migration list
@@ -163,7 +163,7 @@ npx supabase db push --dry-run
 npx supabase db push
 ```
 
-La dernière migration ajoute les quotas en tokens, le catalogue tarifaire versionné, les réservations atomiques, les événements d’usage, les chatbots, les conversations, les connaissances, les exécutions d’automatisation et les verrous d’idempotence des outils.
+Les dernières migrations ajoutent les quotas en tokens, le catalogue tarifaire versionné, les réservations atomiques, les événements d’usage, les chatbots, les conversations, les connaissances, les exécutions d’automatisation, les verrous d’idempotence des outils, l’apprentissage conversationnel et les sources web persistantes.
 
 ### Tokens et coûts réels
 
@@ -342,7 +342,11 @@ L’activation des agents, les connexions OAuth et les préférences de notifica
 
 La page `/chatbots` permet de créer plusieurs assistants par entreprise. Chacun possède un modèle activé dans les paramètres, un prompt système, un état, des connaissances privées et plusieurs conversations. Les messages et leur événement d’usage sont persistés dans Supabase ; recharger ou redémarrer l’application ne supprime pas l’historique.
 
-Avant chaque réponse, le serveur reconstruit le contexte à partir de l’historique borné de la conversation, des connaissances du chatbot et des éléments de mémoire autorisés. `buildMemoryContext` ignore les éléments bloqués, les classe par pertinence et confiance, puis les encadre comme données non fiables afin qu’ils ne puissent pas remplacer le prompt système. Désactiver la mémoire dans les paramètres empêche immédiatement son injection.
+Avant chaque réponse, le serveur reconstruit le contexte à partir de l’historique borné de la conversation, des connaissances du chatbot et des éléments de mémoire autorisés. `buildMemoryContext` ignore les éléments bloqués, les classe par pertinence et confiance, puis les encadre comme données non fiables afin qu’ils ne puissent pas remplacer le prompt système. Le choix « Utiliser le contexte » est proposé à la création de chaque chatbot et peut être modifié ensuite.
+
+Lorsque « Faire grandir le contexte » est actif et que l’apprentissage de mémoire est autorisé dans les paramètres, une extraction structurée s’exécute après la réponse. Elle conserve au maximum trois faits durables, exclut les secrets et évite les doublons. Si la validation de mémoire est obligatoire, ces éléments restent bloqués jusqu’à leur autorisation dans la carte **Connaissances**.
+
+L’option « Connecter au web » active l’outil hébergé OpenAI `web_search` uniquement côté serveur. Le modèle décide de rechercher lorsque la question nécessite des informations actuelles ; les URL citées sont enregistrées avec le message et affichées sous forme de liens cliquables. Cette option peut générer un coût d’outil supplémentaire chez le fournisseur.
 
 L’écriture, la modification, le blocage et la suppression de mémoire attendent la confirmation de la base avant d’afficher un succès. Les politiques RLS interdisent l’accès public aux tables des chatbots et de l’usage ; toutes les lectures passent par une route authentifiée et l’entreprise active.
 

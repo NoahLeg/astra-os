@@ -129,15 +129,16 @@ export const assistantService = {
 
 export const chatbotService = {
   list: async () => (await apiClient<{ chatbots: Chatbot[] }>("/api/chatbots", { cache: "no-store" })).data.chatbots,
-  create: async (input: Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled">) => (await apiClient<{ chatbot: Chatbot }>("/api/chatbots", { method: "POST", body: JSON.stringify(input) })).data.chatbot,
-  update: async (id: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "status">>) => (await apiClient<{ chatbot: Chatbot }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(changes) })).data.chatbot,
+  create: async (input: Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "webEnabled">) => (await apiClient<{ chatbot: Chatbot }>("/api/chatbots", { method: "POST", body: JSON.stringify(input) })).data.chatbot,
+  update: async (id: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "webEnabled" | "status">>) => (await apiClient<{ chatbot: Chatbot }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(changes) })).data.chatbot,
   delete: async (id: string) => (await apiClient<{ success: true }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "DELETE" })).data,
   detail: async (id: string) => (await apiClient<{ chatbot: Chatbot; knowledge: ChatbotKnowledge[]; conversations: ChatbotConversation[] }>(`/api/chatbots/${encodeURIComponent(id)}`, { cache: "no-store" })).data,
   addKnowledge: async (id: string, input: { title: string; content: string; source?: string }) => (await apiClient<{ knowledge: ChatbotKnowledge }>(`/api/chatbots/${encodeURIComponent(id)}/knowledge`, { method: "POST", body: JSON.stringify(input) })).data.knowledge,
+  updateKnowledge: async (id: string, knowledgeId: string, blocked: boolean) => (await apiClient<{ knowledge: ChatbotKnowledge }>(`/api/chatbots/${encodeURIComponent(id)}/knowledge`, { method: "PATCH", body: JSON.stringify({ knowledgeId, blocked }) })).data.knowledge,
   deleteKnowledge: async (id: string, knowledgeId: string) => (await apiClient<{ success: true }>(`/api/chatbots/${encodeURIComponent(id)}/knowledge?knowledgeId=${encodeURIComponent(knowledgeId)}`, { method: "DELETE" })).data,
   createConversation: async (id: string) => (await apiClient<{ conversation: ChatbotConversation }>(`/api/chatbots/${encodeURIComponent(id)}/conversations`, { method: "POST", body: JSON.stringify({}) })).data.conversation,
   messages: async (id: string, conversationId: string) => (await apiClient<{ messages: ChatbotMessage[] }>(`/api/chatbots/${encodeURIComponent(id)}/conversations?conversationId=${encodeURIComponent(conversationId)}`, { cache: "no-store" })).data.messages,
-  send: async (id: string, message: string, conversationId?: string) => (await apiClient<{ conversation: ChatbotConversation; message: ChatbotMessage; usage?: ChatbotMessage["usage"] }>(`/api/chatbots/${encodeURIComponent(id)}/chat`, { method: "POST", body: JSON.stringify({ message, conversationId }), timeout: 65_000 })).data,
+  send: async (id: string, message: string, conversationId?: string) => (await apiClient<{ conversation: ChatbotConversation; message: ChatbotMessage; learningScheduled: boolean; usage?: ChatbotMessage["usage"] }>(`/api/chatbots/${encodeURIComponent(id)}/chat`, { method: "POST", body: JSON.stringify({ message, conversationId }), timeout: 65_000 })).data,
 };
 
 export const orchestrationService = {

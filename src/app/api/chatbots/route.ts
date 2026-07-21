@@ -13,6 +13,7 @@ const schema = z.object({
   name: z.string().trim().min(2).max(100), description: z.string().trim().max(500),
   model: z.enum(openAIModels.map((model) => model.id) as [string, ...string[]]),
   systemPrompt: z.string().trim().min(10).max(20_000), memoryEnabled: z.boolean(),
+  learningEnabled: z.boolean(), webEnabled: z.boolean(),
 });
 
 async function getSession(request: Request) {

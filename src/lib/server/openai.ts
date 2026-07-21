@@ -11,7 +11,14 @@ interface OpenAIResponsePayload {
   id?: string;
   model?: string;
   output_text?: string;
-  output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+  output?: Array<{
+    type?: string;
+    content?: Array<{
+      type?: string;
+      text?: string;
+      annotations?: Array<{ type?: string; url?: string; title?: string }>;
+    }>;
+  }>;
   usage?: {
     input_tokens?: number;
     output_tokens?: number;
@@ -30,6 +37,8 @@ export interface OpenAIResponseResult {
   model: string;
   requestId?: string;
   usage?: AIUsageEvent;
+  citations: Array<{ url: string; title: string }>;
+  webSearchUsed: boolean;
 }
 
 export class OpenAIRequestError extends Error {
@@ -47,6 +56,15 @@ function getResponseText(response: OpenAIResponsePayload) {
     .map((item) => item.text)
     .join("\n")
     .trim();
+}
+
+function getResponseCitations(response: OpenAIResponsePayload) {
+  const citations = response.output
+    ?.flatMap((item) => item.content ?? [])
+    .flatMap((item) => item.annotations ?? [])
+    .filter((item) => item.type === "url_citation" && item.url)
+    .map((item) => ({ url: item.url!, title: item.title?.trim() || new URL(item.url!).hostname })) ?? [];
+  return [...new Map(citations.map((citation) => [citation.url, citation])).values()].slice(0, 12);
 }
 
 function getResponsesEndpoint(baseUrl?: string) {
@@ -113,6 +131,7 @@ export async function createOpenAIResponse(input: {
   prompt: string;
   maxOutputTokens?: number;
   text?: Record<string, unknown>;
+  webSearch?: boolean;
   tracking?: { userId: string; workspaceId?: string; feature: FeatureKey; metadata?: Record<string, unknown> };
 }) : Promise<OpenAIResponseResult> {
   const usageEventId = randomUUID();
@@ -144,6 +163,7 @@ export async function createOpenAIResponse(input: {
         store: false,
         ...(input.tracking ? { safety_identifier: createHash("sha256").update(input.tracking.userId).digest("hex") } : {}),
         ...(input.text ? { text: input.text } : {}),
+        ...(input.webSearch ? { tools: [{ type: "web_search" }] } : {}),
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(60_000),
@@ -225,5 +245,12 @@ export async function createOpenAIResponse(input: {
       metadata: tracking.metadata,
     }));
   }
-  return { content, model, requestId: payload.id ?? requestId, usage };
+  return {
+    content,
+    model,
+    requestId: payload.id ?? requestId,
+    usage,
+    citations: getResponseCitations(payload),
+    webSearchUsed: Boolean(payload.output?.some((item) => item.type === "web_search_call")),
+  };
 }
