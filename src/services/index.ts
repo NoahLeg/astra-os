@@ -1,4 +1,4 @@
-import type { AccessLevel, AccountProfile, ActivityEvent, AgentExecution, AppNotification, ApprovalRequest, Automation, AutomationExecution, AutomationRun, BillingOverview, Chatbot, ChatbotConversation, ChatbotKnowledge, ChatbotMessage, Connection, EnterpriseQuoteRequest, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, TaskCollaborationOverview, TaskEntityType, TeamOverview, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
+import type { AccessLevel, AccountProfile, ActivityEvent, AgentExecution, AppNotification, ApprovalRequest, Automation, AutomationExecution, AutomationRun, BillingOverview, Chatbot, ChatbotConversation, ChatbotKnowledge, ChatbotMessage, Connection, ContextFile, EnterpriseQuoteRequest, Goal, GoalAnalysis, MemoryItem, MissionExecution, Project, SubscriptionPlan, TaskCollaborationOverview, TaskEntityType, TeamOverview, WorkItemExecution, WorkspaceData, WorkspaceSettings } from "@/types";
 import { apiClient } from "./api-client";
 
 type Collection = keyof WorkspaceData;
@@ -128,9 +128,10 @@ export const assistantService = {
 };
 
 export const chatbotService = {
+  availableModels: async () => (await apiClient<{ models: Array<{ id: string; name: string; provider: string; description?: string; contextWindow?: number }> }>("/api/ai-models", { cache: "no-store" })).data.models,
   list: async () => (await apiClient<{ chatbots: Chatbot[] }>("/api/chatbots", { cache: "no-store" })).data.chatbots,
-  create: async (input: Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "webEnabled">) => (await apiClient<{ chatbot: Chatbot }>("/api/chatbots", { method: "POST", body: JSON.stringify(input) })).data.chatbot,
-  update: async (id: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "webEnabled" | "status">>) => (await apiClient<{ chatbot: Chatbot }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(changes) })).data.chatbot,
+  create: async (input: Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "globalLearningEnabled" | "webEnabled">) => (await apiClient<{ chatbot: Chatbot }>("/api/chatbots", { method: "POST", body: JSON.stringify(input) })).data.chatbot,
+  update: async (id: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "globalLearningEnabled" | "webEnabled" | "status">>) => (await apiClient<{ chatbot: Chatbot }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(changes) })).data.chatbot,
   delete: async (id: string) => (await apiClient<{ success: true }>(`/api/chatbots/${encodeURIComponent(id)}`, { method: "DELETE" })).data,
   detail: async (id: string) => (await apiClient<{ chatbot: Chatbot; knowledge: ChatbotKnowledge[]; conversations: ChatbotConversation[] }>(`/api/chatbots/${encodeURIComponent(id)}`, { cache: "no-store" })).data,
   addKnowledge: async (id: string, input: { title: string; content: string; source?: string }) => (await apiClient<{ knowledge: ChatbotKnowledge }>(`/api/chatbots/${encodeURIComponent(id)}/knowledge`, { method: "POST", body: JSON.stringify(input) })).data.knowledge,
@@ -139,6 +140,14 @@ export const chatbotService = {
   createConversation: async (id: string) => (await apiClient<{ conversation: ChatbotConversation }>(`/api/chatbots/${encodeURIComponent(id)}/conversations`, { method: "POST", body: JSON.stringify({}) })).data.conversation,
   messages: async (id: string, conversationId: string) => (await apiClient<{ messages: ChatbotMessage[] }>(`/api/chatbots/${encodeURIComponent(id)}/conversations?conversationId=${encodeURIComponent(conversationId)}`, { cache: "no-store" })).data.messages,
   send: async (id: string, message: string, conversationId?: string) => (await apiClient<{ conversation: ChatbotConversation; message: ChatbotMessage; learningScheduled: boolean; usage?: ChatbotMessage["usage"] }>(`/api/chatbots/${encodeURIComponent(id)}/chat`, { method: "POST", body: JSON.stringify({ message, conversationId }), timeout: 65_000 })).data,
+  files: async (id: string) => (await apiClient<{ files: ContextFile[] }>(`/api/chatbots/${encodeURIComponent(id)}/files`, { cache: "no-store" })).data.files,
+  uploadFile: async (id: string, file: File, scope: ContextFile["scope"]) => {
+    const body = new FormData();
+    body.set("file", file);
+    body.set("scope", scope);
+    return (await apiClient<{ file: ContextFile }>(`/api/chatbots/${encodeURIComponent(id)}/files`, { method: "POST", body, timeout: 45_000 })).data.file;
+  },
+  deleteFile: async (id: string, fileId: string) => (await apiClient<{ success: true }>(`/api/chatbots/${encodeURIComponent(id)}/files?fileId=${encodeURIComponent(fileId)}`, { method: "DELETE" })).data,
 };
 
 export const orchestrationService = {

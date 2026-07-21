@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       listWorkspaceInvoices(subscription.workspaceId),
       getAIUsageSummary(user.id),
     ]);
-    return NextResponse.json({ plans: getSubscriptionPlans(), subscription, invoices, usage });
+    return NextResponse.json({ plans: await getSubscriptionPlans(), subscription, invoices, usage });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Abonnement indisponible" }, { status: 503 });
   }

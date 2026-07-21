@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { subscriptionPlans } from "@/config";
 import { getWorkspaceIdForUser, isSupabaseDatabaseEnabled, serverDatabaseRequest } from "@/lib/server/database";
 import { getStripeClient } from "@/lib/server/stripe";
+import { getPlatformStripeConfiguration, listPlatformPlans } from "@/lib/server/platform-admin";
 import type { Agent, BillingInvoice, EnterpriseQuoteRequest, EnterpriseQuoteStatus, FeatureKey, SubscriptionPlan, SubscriptionStatus, WorkspaceSubscription } from "@/types";
 
 interface SubscriptionRow {
@@ -40,20 +41,23 @@ export class BillingAccessError extends Error {
   }
 }
 
-function planById(planId: string | undefined) {
-  return subscriptionPlans.find((plan) => plan.id === planId) ?? subscriptionPlans[0];
+async function planById(planId: string | undefined) {
+  const plans = await getSubscriptionPlans();
+  return plans.find((plan) => plan.id === planId) ?? plans[0];
 }
 
-function stripeConfiguredPlans(): SubscriptionPlan["id"][] {
-  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) return [];
-  return [
-    ...(process.env.STRIPE_PRICE_STARTER ? ["starter" as const] : []),
-    ...(process.env.STRIPE_PRICE_PRO ? ["pro" as const] : []),
-    ...(process.env.STRIPE_PRICE_BUSINESS ? ["business" as const] : []),
-  ];
+async function stripeConfiguredPlans(): Promise<SubscriptionPlan["id"][]> {
+  const [plans, stripe] = await Promise.all([getSubscriptionPlans(), getPlatformStripeConfiguration().catch(() => undefined)]);
+  const databasePlans = stripe?.status === "active" ? plans.filter((plan) => plan.stripeMonthlyPriceId).map((plan) => plan.id) : [];
+  return [...new Set([
+    ...databasePlans,
+    ...(process.env.STRIPE_PRICE_STARTER ? ["starter"] : []),
+    ...(process.env.STRIPE_PRICE_PRO ? ["pro"] : []),
+    ...(process.env.STRIPE_PRICE_BUSINESS ? ["business"] : []),
+  ])];
 }
 
-function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan, memberCount: number): WorkspaceSubscription {
+function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan, memberCount: number, configuredPlans: string[]): WorkspaceSubscription {
   const maxMembers = plan.id === "enterprise" ? row.member_limit_override ?? plan.maxMembers : plan.maxMembers;
   const monthlyUsageExpired = new Date(row.api_usage_reset_at).getTime() <= Date.now();
   const dailyUsageExpired = row.api_usage_day !== new Date().toISOString().slice(0, 10);
@@ -72,6 +76,8 @@ function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan, m
     minuteRequestLimit: plan.minuteRequestLimit,
     totalCostNanoUsd: monthlyUsageExpired ? 0 : row.total_cost_nano_usd,
     maxAgents: plan.maxAgents,
+    maxModels: plan.maxModels ?? 1,
+    premiumModels: Boolean(plan.premiumModels),
     memberCount,
     maxMembers,
     usageResetAt: row.api_usage_reset_at,
@@ -81,13 +87,14 @@ function toWorkspaceSubscription(row: SubscriptionRow, plan: SubscriptionPlan, m
     managedByStripe: Boolean(row.stripe_customer_id && row.stripe_subscription_id),
     features: plan.features,
     quoteOnly: Boolean(plan.quoteOnly),
-    stripeConfigured: stripeConfiguredPlans().length > 0,
-    stripeConfiguredPlans: stripeConfiguredPlans(),
+    stripeConfigured: configuredPlans.length > 0,
+    stripeConfiguredPlans: configuredPlans,
   };
 }
 
-function localSubscription(): WorkspaceSubscription {
-  const plan = planById("business");
+async function localSubscription(): Promise<WorkspaceSubscription> {
+  const plan = await planById("business");
+  const configuredPlans = await stripeConfiguredPlans();
   return {
     workspaceId: "local",
     planId: plan.id,
@@ -103,6 +110,8 @@ function localSubscription(): WorkspaceSubscription {
     minuteRequestLimit: plan.minuteRequestLimit,
     totalCostNanoUsd: 0,
     maxAgents: plan.maxAgents,
+    maxModels: plan.maxModels ?? 1,
+    premiumModels: Boolean(plan.premiumModels),
     memberCount: 1,
     maxMembers: plan.maxMembers,
     usageResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000).toISOString(),
@@ -111,13 +120,14 @@ function localSubscription(): WorkspaceSubscription {
     managedByStripe: false,
     features: plan.features,
     quoteOnly: Boolean(plan.quoteOnly),
-    stripeConfigured: stripeConfiguredPlans().length > 0,
-    stripeConfiguredPlans: stripeConfiguredPlans(),
+    stripeConfigured: configuredPlans.length > 0,
+    stripeConfiguredPlans: configuredPlans,
   };
 }
 
-export function getSubscriptionPlans() {
-  return subscriptionPlans;
+export async function getSubscriptionPlans() {
+  if (!isSupabaseDatabaseEnabled()) return subscriptionPlans;
+  return listPlatformPlans(false).catch(() => subscriptionPlans);
 }
 
 export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string): Promise<WorkspaceSubscription> {
@@ -140,7 +150,8 @@ export async function getWorkspaceSubscriptionByWorkspaceId(workspaceId: string)
   const members = await serverDatabaseRequest<Array<{ user_id: string }>>(
     `workspace_members?workspace_id=eq.${encodeURIComponent(workspaceId)}&status=eq.active&select=user_id`,
   );
-  return toWorkspaceSubscription(row, planById(row.plan_id), members.length);
+  const [plan, configuredPlans] = await Promise.all([planById(row.plan_id), stripeConfiguredPlans()]);
+  return toWorkspaceSubscription(row, plan, members.length, configuredPlans);
 }
 
 export async function getWorkspaceSubscription(userId: string) {
@@ -159,8 +170,8 @@ export async function getWorkspaceBillingIdentifiers(workspaceId: string): Promi
 
 export async function listWorkspaceInvoices(workspaceId: string): Promise<BillingInvoice[]> {
   const identifiers = await getWorkspaceBillingIdentifiers(workspaceId);
-  if (!identifiers.stripe_customer_id || !process.env.STRIPE_SECRET_KEY) return [];
-  const invoices = await getStripeClient().invoices.list({ customer: identifiers.stripe_customer_id, limit: 12 });
+  if (!identifiers.stripe_customer_id) return [];
+  const invoices = await (await getStripeClient()).invoices.list({ customer: identifiers.stripe_customer_id, limit: 12 });
   return invoices.data.map((invoice) => ({
     id: invoice.id,
     number: invoice.number ?? undefined,
@@ -213,14 +224,18 @@ export function enforceAgentQuota(subscription: WorkspaceSubscription, agents: A
   }
 }
 
-export function getStripePriceId(planId: SubscriptionPlan["id"]) {
+export async function getStripePriceId(planId: SubscriptionPlan["id"]) {
+  const plan = (await getSubscriptionPlans()).find((item) => item.id === planId);
+  if (plan?.stripeMonthlyPriceId) return plan.stripeMonthlyPriceId;
   if (planId === "starter") return process.env.STRIPE_PRICE_STARTER;
   if (planId === "pro") return process.env.STRIPE_PRICE_PRO;
   if (planId === "business") return process.env.STRIPE_PRICE_BUSINESS;
   return undefined;
 }
 
-export function getPlanIdFromStripePrice(priceId: string | undefined) {
+export async function getPlanIdFromStripePrice(priceId: string | undefined) {
+  const plan = (await getSubscriptionPlans()).find((item) => item.stripeMonthlyPriceId === priceId || item.stripeAnnualPriceId === priceId);
+  if (plan) return plan.id;
   if (priceId && priceId === process.env.STRIPE_PRICE_STARTER) return "starter" as const;
   if (priceId && priceId === process.env.STRIPE_PRICE_PRO) return "pro" as const;
   if (priceId && priceId === process.env.STRIPE_PRICE_BUSINESS) return "business" as const;
@@ -281,7 +296,7 @@ export async function updateWorkspaceSubscriptionFromStripe(input: {
   cancelAtPeriodEnd?: boolean;
   onboardingCompleted?: boolean;
 }) {
-  const targetPlan = planById(input.planId);
+  const targetPlan = await planById(input.planId);
   await suspendMembersAbovePlanLimit(input.workspaceId, targetPlan);
   await serverDatabaseRequest("workspace_subscriptions?on_conflict=workspace_id", {
     method: "POST",

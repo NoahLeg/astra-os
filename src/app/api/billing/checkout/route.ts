@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
-  planId: z.enum(["free", "starter", "pro", "business", "enterprise"]),
+  planId: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{1,39}$/),
   returnTo: z.enum(["billing", "onboarding"]).default("billing"),
 });
 
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
   try {
     const subscription = await getWorkspaceSubscription(user.id);
-    const targetPlan = getSubscriptionPlans().find((plan) => plan.id === parsed.data.planId);
+    const targetPlan = (await getSubscriptionPlans()).find((plan) => plan.id === parsed.data.planId);
     if (targetPlan && subscription.memberCount > targetPlan.maxMembers) {
       return NextResponse.json({ error: `Cette offre autorise ${targetPlan.maxMembers} siège${targetPlan.maxMembers > 1 ? "s" : ""}. Suspendez d’abord les membres excédentaires.` }, { status: 409 });
     }
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const returnPath = parsed.data.returnTo === "onboarding" ? "/onboarding/subscription" : "/billing";
     const returnUrl = `${new URL(request.url).origin}${returnPath}`;
     if (identifiers.stripe_customer_id && identifiers.stripe_subscription_id) {
-      const stripe = getStripeClient();
+      const stripe = await getStripeClient();
       const portal = await stripe.billingPortal.sessions.create({ customer: identifiers.stripe_customer_id, return_url: returnUrl });
       return NextResponse.json({ url: portal.url });
     }
@@ -41,8 +41,8 @@ export async function POST(request: Request) {
       await updateWorkspaceSubscriptionFromStripe({ workspaceId: subscription.workspaceId, planId: "free", status: "active", onboardingCompleted: true });
       return NextResponse.json({ url: `${returnUrl}?checkout=success` });
     }
-    const stripe = getStripeClient();
-    const priceId = getStripePriceId(parsed.data.planId);
+    const stripe = await getStripeClient();
+    const priceId = await getStripePriceId(parsed.data.planId);
     if (!priceId) return NextResponse.json({ error: `Le prix Stripe ${parsed.data.planId.toUpperCase()} n'est pas configuré sur Vercel.` }, { status: 503 });
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",

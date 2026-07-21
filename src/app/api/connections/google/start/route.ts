@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     if (!workspaceId) throw new Error("Aucun espace de travail associé à ce compte.");
     const existingCredential = await getStoredGoogleCredential({ workspaceId, actorUserId: user.id, connectionId });
     const state = `${connectionId}.${randomUUID()}`;
-    const response = NextResponse.redirect(createGoogleAuthorizationUrl({
+    const response = NextResponse.redirect(await createGoogleAuthorizationUrl({
       state,
       requestUrl: request.url,
       forceConsent: existingCredential?.label !== GOOGLE_WORKSPACE_SECRET_LABEL || request.nextUrl.searchParams.get("force") === "1",

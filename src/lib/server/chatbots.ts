@@ -7,7 +7,7 @@ import type { Chatbot, ChatbotCitation, ChatbotConversation, ChatbotKnowledge, C
 
 interface ChatbotRow {
   id: string; workspace_id?: string; name: string; slug: string; description: string; provider: "openai"; model: string;
-  system_prompt: string; memory_enabled: boolean | number; learning_enabled: boolean | number; web_enabled: boolean | number;
+  system_prompt: string; memory_enabled: boolean | number; learning_enabled: boolean | number; global_learning_enabled: boolean | number; web_enabled: boolean | number;
   is_system: boolean | number; status: "active" | "paused"; created_at: string; updated_at: string;
 }
 
@@ -34,7 +34,7 @@ function ensureLocalChatbotSchema() {
     CREATE TABLE IF NOT EXISTS chatbots (
       id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, description TEXT NOT NULL,
       provider TEXT NOT NULL, model TEXT NOT NULL, system_prompt TEXT NOT NULL, memory_enabled INTEGER NOT NULL,
-      learning_enabled INTEGER NOT NULL DEFAULT 1, web_enabled INTEGER NOT NULL DEFAULT 0,
+      learning_enabled INTEGER NOT NULL DEFAULT 1, global_learning_enabled INTEGER NOT NULL DEFAULT 0, web_enabled INTEGER NOT NULL DEFAULT 0,
       is_system INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS chatbot_knowledge (
@@ -55,12 +55,13 @@ function ensureLocalChatbotSchema() {
     CREATE INDEX IF NOT EXISTS chatbot_messages_conversation_idx ON chatbot_messages(conversation_id, created_at ASC);
   `);
   ensureLocalColumn("chatbots", "learning_enabled", "INTEGER NOT NULL DEFAULT 1");
+  ensureLocalColumn("chatbots", "global_learning_enabled", "INTEGER NOT NULL DEFAULT 0");
   ensureLocalColumn("chatbots", "web_enabled", "INTEGER NOT NULL DEFAULT 0");
   ensureLocalColumn("chatbot_messages", "citations", "TEXT NOT NULL DEFAULT '[]'");
 }
 
 function toChatbot(row: ChatbotRow): Chatbot {
-  return { id: row.id, name: row.name, slug: row.slug, description: row.description, provider: row.provider, model: row.model, systemPrompt: row.system_prompt, memoryEnabled: Boolean(row.memory_enabled), learningEnabled: Boolean(row.learning_enabled), webEnabled: Boolean(row.web_enabled), isSystem: Boolean(row.is_system), status: row.status, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, name: row.name, slug: row.slug, description: row.description, provider: row.provider, model: row.model, systemPrompt: row.system_prompt, memoryEnabled: Boolean(row.memory_enabled), learningEnabled: Boolean(row.learning_enabled), globalLearningEnabled: Boolean(row.global_learning_enabled), webEnabled: Boolean(row.web_enabled), isSystem: Boolean(row.is_system), status: row.status, createdAt: row.created_at, updatedAt: row.updated_at };
 }
 
 function toKnowledge(row: KnowledgeRow): ChatbotKnowledge {
@@ -90,7 +91,7 @@ export async function listChatbots(userId: string, includeSystem = false) {
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     if (!workspaceId) throw new Error("Espace de travail introuvable.");
-    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}${includeSystem ? "" : "&is_system=eq.false"}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,web_enabled,is_system,status,created_at,updated_at&order=updated_at.desc`);
+    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}${includeSystem ? "" : "&is_system=eq.false"}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,global_learning_enabled,web_enabled,is_system,status,created_at,updated_at&order=updated_at.desc`);
     return rows.map(toChatbot);
   }
   ensureLocalChatbotSchema();
@@ -102,7 +103,7 @@ export async function getChatbot(userId: string, chatbotId: string) {
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     if (!workspaceId) return undefined;
-    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}&id=eq.${encodeURIComponent(chatbotId)}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,web_enabled,is_system,status,created_at,updated_at&limit=1`);
+    const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId)}&id=eq.${encodeURIComponent(chatbotId)}&select=id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,global_learning_enabled,web_enabled,is_system,status,created_at,updated_at&limit=1`);
     return rows[0] ? toChatbot(rows[0]) : undefined;
   }
   ensureLocalChatbotSchema();
@@ -110,12 +111,12 @@ export async function getChatbot(userId: string, chatbotId: string) {
   return row ? toChatbot(row) : undefined;
 }
 
-export async function createChatbot(userId: string, input: { name: string; description: string; model: string; systemPrompt: string; memoryEnabled: boolean; learningEnabled?: boolean; webEnabled?: boolean; isSystem?: boolean; slug?: string }) {
+export async function createChatbot(userId: string, input: { name: string; description: string; model: string; systemPrompt: string; memoryEnabled: boolean; learningEnabled?: boolean; globalLearningEnabled?: boolean; webEnabled?: boolean; isSystem?: boolean; slug?: string }) {
   const id = randomUUID();
   const now = new Date().toISOString();
   const baseSlug = input.slug ? slugify(input.slug) : slugify(input.name);
   const slug = input.isSystem ? baseSlug : `${baseSlug}-${id.slice(0, 6)}`;
-  const row: ChatbotRow = { id, name: input.name, slug, description: input.description, provider: "openai", model: input.model, system_prompt: input.systemPrompt, memory_enabled: input.memoryEnabled, learning_enabled: input.learningEnabled ?? input.memoryEnabled, web_enabled: input.webEnabled ?? false, is_system: Boolean(input.isSystem), status: "active", created_at: now, updated_at: now };
+  const row: ChatbotRow = { id, name: input.name, slug, description: input.description, provider: "openai", model: input.model, system_prompt: input.systemPrompt, memory_enabled: input.memoryEnabled, learning_enabled: input.learningEnabled ?? input.memoryEnabled, global_learning_enabled: input.globalLearningEnabled ?? false, web_enabled: input.webEnabled ?? false, is_system: Boolean(input.isSystem), status: "active", created_at: now, updated_at: now };
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     if (!workspaceId) throw new Error("Espace de travail introuvable.");
@@ -124,14 +125,14 @@ export async function createChatbot(userId: string, input: { name: string; descr
     return toChatbot(rows[0]);
   }
   ensureLocalChatbotSchema();
-  getLocalDatabase().prepare("INSERT INTO chatbots (id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,web_enabled,is_system,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id, row.name, row.slug, row.description, row.provider, row.model, row.system_prompt, row.memory_enabled ? 1 : 0, row.learning_enabled ? 1 : 0, row.web_enabled ? 1 : 0, row.is_system ? 1 : 0, row.status, now, now);
+  getLocalDatabase().prepare("INSERT INTO chatbots (id,name,slug,description,provider,model,system_prompt,memory_enabled,learning_enabled,global_learning_enabled,web_enabled,is_system,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(id, row.name, row.slug, row.description, row.provider, row.model, row.system_prompt, row.memory_enabled ? 1 : 0, row.learning_enabled ? 1 : 0, row.global_learning_enabled ? 1 : 0, row.web_enabled ? 1 : 0, row.is_system ? 1 : 0, row.status, now, now);
   return toChatbot(row);
 }
 
-export async function updateChatbot(userId: string, chatbotId: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "webEnabled" | "status">>) {
+export async function updateChatbot(userId: string, chatbotId: string, changes: Partial<Pick<Chatbot, "name" | "description" | "model" | "systemPrompt" | "memoryEnabled" | "learningEnabled" | "globalLearningEnabled" | "webEnabled" | "status">>) {
   const chatbot = await getChatbot(userId, chatbotId);
   if (!chatbot) throw new Error("Chatbot introuvable.");
-  const payload = { ...(changes.name !== undefined ? { name: changes.name } : {}), ...(changes.description !== undefined ? { description: changes.description } : {}), ...(changes.model !== undefined ? { model: changes.model } : {}), ...(changes.systemPrompt !== undefined ? { system_prompt: changes.systemPrompt } : {}), ...(changes.memoryEnabled !== undefined ? { memory_enabled: changes.memoryEnabled } : {}), ...(changes.learningEnabled !== undefined ? { learning_enabled: changes.learningEnabled } : {}), ...(changes.webEnabled !== undefined ? { web_enabled: changes.webEnabled } : {}), ...(changes.status !== undefined ? { status: changes.status } : {}), updated_at: new Date().toISOString() };
+  const payload = { ...(changes.name !== undefined ? { name: changes.name } : {}), ...(changes.description !== undefined ? { description: changes.description } : {}), ...(changes.model !== undefined ? { model: changes.model } : {}), ...(changes.systemPrompt !== undefined ? { system_prompt: changes.systemPrompt } : {}), ...(changes.memoryEnabled !== undefined ? { memory_enabled: changes.memoryEnabled } : {}), ...(changes.learningEnabled !== undefined ? { learning_enabled: changes.learningEnabled } : {}), ...(changes.globalLearningEnabled !== undefined ? { global_learning_enabled: changes.globalLearningEnabled } : {}), ...(changes.webEnabled !== undefined ? { web_enabled: changes.webEnabled } : {}), ...(changes.status !== undefined ? { status: changes.status } : {}), updated_at: new Date().toISOString() };
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     const rows = await serverDatabaseRequest<ChatbotRow[]>(`chatbots?workspace_id=eq.${encodeURIComponent(workspaceId!)}&id=eq.${encodeURIComponent(chatbotId)}`, { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(payload) });
@@ -140,7 +141,7 @@ export async function updateChatbot(userId: string, chatbotId: string, changes: 
   }
   ensureLocalChatbotSchema();
   const updated = { ...chatbot, ...changes, updatedAt: payload.updated_at };
-  getLocalDatabase().prepare("UPDATE chatbots SET name=?,description=?,model=?,system_prompt=?,memory_enabled=?,learning_enabled=?,web_enabled=?,status=?,updated_at=? WHERE id=?").run(updated.name, updated.description, updated.model, updated.systemPrompt, updated.memoryEnabled ? 1 : 0, updated.learningEnabled ? 1 : 0, updated.webEnabled ? 1 : 0, updated.status, updated.updatedAt, chatbotId);
+  getLocalDatabase().prepare("UPDATE chatbots SET name=?,description=?,model=?,system_prompt=?,memory_enabled=?,learning_enabled=?,global_learning_enabled=?,web_enabled=?,status=?,updated_at=? WHERE id=?").run(updated.name, updated.description, updated.model, updated.systemPrompt, updated.memoryEnabled ? 1 : 0, updated.learningEnabled ? 1 : 0, updated.globalLearningEnabled ? 1 : 0, updated.webEnabled ? 1 : 0, updated.status, updated.updatedAt, chatbotId);
   return updated;
 }
 

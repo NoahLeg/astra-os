@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const workspaceId = new URL(request.url).searchParams.get("workspaceId");
     if (workspaceId) {
       const [secrets, auditLogs, subscription, invoices, enterpriseQuotes] = await Promise.all([listWorkspaceSecrets(workspaceId), listWorkspaceAuditLogs(workspaceId), getWorkspaceSubscriptionByWorkspaceId(workspaceId), listWorkspaceInvoices(workspaceId), listEnterpriseQuoteRequests(workspaceId)]);
-      return NextResponse.json({ secrets, auditLogs, enterpriseQuotes, billing: { plans: getSubscriptionPlans(), subscription, invoices } });
+      return NextResponse.json({ secrets, auditLogs, enterpriseQuotes, billing: { plans: await getSubscriptionPlans(), subscription, invoices } });
     }
     return NextResponse.json({ workspaces: await listAdminWorkspaces() });
   } catch {

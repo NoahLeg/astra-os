@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { findWorkspaceIdByStripeSubscriptionId, getPlanIdFromStripePrice, updateWorkspaceSubscriptionFromStripe } from "@/lib/server/billing";
-import { getStripeClient } from "@/lib/server/stripe";
+import { getStripeClient, getStripeWebhookSecret } from "@/lib/server/stripe";
 import type { SubscriptionPlan, SubscriptionStatus } from "@/types";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ function normalizeStatus(status: Stripe.Subscription.Status): SubscriptionStatus
 async function syncSubscription(subscription: Stripe.Subscription, fallback?: { workspaceId?: string; planId?: SubscriptionPlan["id"] }) {
   const workspaceId = subscription.metadata.workspaceId || fallback?.workspaceId || await findWorkspaceIdByStripeSubscriptionId(subscription.id);
   const priceId = subscription.items.data[0]?.price.id;
-  const planId = (subscription.metadata.planId as SubscriptionPlan["id"] | undefined) || fallback?.planId || getPlanIdFromStripePrice(priceId);
+  const planId = (subscription.metadata.planId as SubscriptionPlan["id"] | undefined) || fallback?.planId || await getPlanIdFromStripePrice(priceId);
   if (!workspaceId || !planId) throw new Error("Métadonnées Stripe incomplètes : workspaceId ou planId manquant.");
   const periodEnd = subscription.items.data[0]?.current_period_end;
   await updateWorkspaceSubscriptionFromStripe({
@@ -35,13 +35,13 @@ async function syncSubscription(subscription: Stripe.Subscription, fallback?: { 
 }
 
 export async function POST(request: Request) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret = await getStripeWebhookSecret();
   const signature = request.headers.get("stripe-signature");
   if (!webhookSecret || !signature) return NextResponse.json({ error: "Webhook Stripe non configuré" }, { status: 503 });
   const body = await request.text();
   let event: Stripe.Event;
   try {
-    event = getStripeClient().webhooks.constructEvent(body, signature, webhookSecret);
+    event = (await getStripeClient()).webhooks.constructEvent(body, signature, webhookSecret);
   } catch {
     return NextResponse.json({ error: "Signature Stripe invalide" }, { status: 400 });
   }
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       const session = event.data.object as Stripe.Checkout.Session;
       const subscriptionId = stripeId(session.subscription);
       if (subscriptionId) {
-        const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
+        const subscription = await (await getStripeClient()).subscriptions.retrieve(subscriptionId);
         await syncSubscription(subscription, {
           workspaceId: session.metadata?.workspaceId || session.client_reference_id || undefined,
           planId: session.metadata?.planId as SubscriptionPlan["id"] | undefined,

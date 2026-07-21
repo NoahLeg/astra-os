@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { openAIModels } from "@/config";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { BillingAccessError, requireSubscriptionFeature } from "@/lib/server/billing";
 import { createChatbot, listChatbots } from "@/lib/server/chatbots";
@@ -11,9 +10,9 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(100), description: z.string().trim().max(500),
-  model: z.enum(openAIModels.map((model) => model.id) as [string, ...string[]]),
+  model: z.string().trim().min(1).max(200),
   systemPrompt: z.string().trim().min(10).max(20_000), memoryEnabled: z.boolean(),
-  learningEnabled: z.boolean(), webEnabled: z.boolean(),
+  learningEnabled: z.boolean(), globalLearningEnabled: z.boolean(), webEnabled: z.boolean(),
 });
 
 async function getSession(request: Request) {

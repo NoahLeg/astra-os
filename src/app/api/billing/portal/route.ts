@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const subscription = await getWorkspaceSubscription(user.id);
     const identifiers = await getWorkspaceBillingIdentifiers(subscription.workspaceId);
     if (!identifiers.stripe_customer_id) return NextResponse.json({ error: "Aucun compte de facturation Stripe n'est encore associé à cet espace." }, { status: 409 });
-    const session = await getStripeClient().billingPortal.sessions.create({
+    const session = await (await getStripeClient()).billingPortal.sessions.create({
       customer: identifiers.stripe_customer_id,
       return_url: `${new URL(request.url).origin}/billing`,
     });

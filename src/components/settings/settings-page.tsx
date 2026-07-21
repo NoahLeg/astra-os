@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { autonomyLevels, defaultWorkspaceSettings, models, sensitiveActions } from "@/config";
+import { autonomyLevels, defaultWorkspaceSettings, models as fallbackModels, sensitiveActions } from "@/config";
 import { cn } from "@/lib/utils";
-import { settingsService, workspaceService } from "@/services";
+import { chatbotService, settingsService, workspaceService } from "@/services";
 import { useAppStore } from "@/stores/app-store";
 import type { Permission, WorkspaceSettings } from "@/types";
 
@@ -36,6 +36,7 @@ const permissionActions: Array<{ id: Permission["actions"][number]; label: strin
 ];
 
 export function SettingsPage() {
+  const [models, setModels] = useState<Array<{ id: string; name: string; provider: string; contextWindow?: number | string }>>([...fallbackModels]);
   const [section, setSection] = useState<(typeof sections)[number]["key"]>("profile");
   const [workspaceName, setWorkspaceName] = useState("");
   const [settings, setSettings] = useState<WorkspaceSettings>(defaultWorkspaceSettings);
@@ -43,6 +44,10 @@ export function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const { theme, setTheme } = useTheme();
   const agents = useAppStore((state) => state.agents);
+
+  useEffect(() => {
+    void chatbotService.availableModels().then(setModels).catch(() => undefined);
+  }, []);
   const hydrateFromDatabase = useAppStore((state) => state.hydrateFromDatabase);
   const [permissionDraft, setPermissionDraft] = useState<Record<string, Permission["actions"]>>(() => Object.fromEntries(agents.map((agent) => [agent.id, Array.from(new Set(agent.permissions.flatMap((permission) => permission.actions)))])));
 

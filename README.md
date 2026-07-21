@@ -155,7 +155,7 @@ En présence de `SUPABASE_URL` et `SUPABASE_SECRET_KEY`, la couche serveur utili
 
 La table active RLS et retire l’accès aux rôles `anon` et `authenticated`. Seules les routes serveur disposant de la clé secrète peuvent lire ou modifier les données.
 
-Pour une base déjà créée, vérifiez l’historique puis appliquez toutes les migrations locales manquantes, notamment `20260721145324_add_production_ai_usage_automations_chatbots.sql` et `20260721185912_add_chatbot_context_learning_and_web.sql` :
+Pour une base déjà créée, vérifiez l’historique puis appliquez toutes les migrations locales manquantes, notamment `20260721145324_add_production_ai_usage_automations_chatbots.sql`, `20260721185912_add_chatbot_context_learning_and_web.sql` et `20260721194122_add_context_files_and_global_chatbot_learning.sql` :
 
 ```bash
 npx supabase migration list
@@ -163,7 +163,7 @@ npx supabase db push --dry-run
 npx supabase db push
 ```
 
-Les dernières migrations ajoutent les quotas en tokens, le catalogue tarifaire versionné, les réservations atomiques, les événements d’usage, les chatbots, les conversations, les connaissances, les exécutions d’automatisation, les verrous d’idempotence des outils, l’apprentissage conversationnel et les sources web persistantes.
+Les dernières migrations ajoutent les quotas en tokens, le catalogue tarifaire versionné, les réservations atomiques, les événements d’usage, les chatbots, les conversations, les connaissances, les exécutions d’automatisation, les verrous d’idempotence des outils, l’apprentissage conversationnel, les sources web persistantes et les fichiers multimodaux privés.
 
 ### Tokens et coûts réels
 
@@ -344,9 +344,11 @@ La page `/chatbots` permet de créer plusieurs assistants par entreprise. Chacun
 
 Avant chaque réponse, le serveur reconstruit le contexte à partir de l’historique borné de la conversation, des connaissances du chatbot et des éléments de mémoire autorisés. `buildMemoryContext` ignore les éléments bloqués, les classe par pertinence et confiance, puis les encadre comme données non fiables afin qu’ils ne puissent pas remplacer le prompt système. Le choix « Utiliser le contexte » est proposé à la création de chaque chatbot et peut être modifié ensuite.
 
-Lorsque « Faire grandir le contexte » est actif et que l’apprentissage de mémoire est autorisé dans les paramètres, une extraction structurée s’exécute après la réponse. Elle conserve au maximum trois faits durables, exclut les secrets et évite les doublons. Si la validation de mémoire est obligatoire, ces éléments restent bloqués jusqu’à leur autorisation dans la carte **Connaissances**.
+Lorsque « Faire grandir le contexte » est actif et que l’apprentissage de mémoire est autorisé dans les paramètres, une extraction structurée s’exécute après la réponse. Elle conserve au maximum trois faits durables, exclut les secrets et évite les doublons. L’option « Enrichir la mémoire globale » les enregistre dans la mémoire partagée de l’entreprise ; sinon ils restent propres au chatbot. Si la validation de mémoire est obligatoire, ces éléments restent bloqués jusqu’à leur autorisation.
 
-L’option « Connecter au web » active l’outil hébergé OpenAI `web_search` uniquement côté serveur. Le modèle décide de rechercher lorsque la question nécessite des informations actuelles ; les URL citées sont enregistrées avec le message et affichées sous forme de liens cliquables. Cette option peut générer un coût d’outil supplémentaire chez le fournisseur.
+L’option « Connecter au web » active l’outil hébergé OpenAI `web_search` uniquement côté serveur. Lorsqu’elle est active, la recherche est imposée à chaque réponse, l’accès internet externe est explicitement autorisé et les sources complètes sont demandées. Les URL citées sont enregistrées avec le message et affichées sous forme de liens cliquables. Cette option peut générer un coût d’outil supplémentaire chez le fournisseur.
+
+Les images, PDF, fichiers texte, documents Office et tableurs peuvent être ajoutés depuis `/chatbots`. Les fichiers sont stockés dans le bucket Supabase privé `context-files`, limités à 4 Mo et référencés dans `context_files`. Ils peuvent être propres à un chatbot ou partagés avec toute l’entreprise. Le serveur sélectionne au maximum trois fichiers pertinents et 8 Mo par réponse, puis les transmet à l’API Responses comme `input_image` ou `input_file`. Les fichiers restent inaccessibles au navigateur en dehors des routes authentifiées et doivent être traités comme du contenu non fiable.
 
 L’écriture, la modification, le blocage et la suppression de mémoire attendent la confirmation de la base avant d’afficher un succès. Les politiques RLS interdisent l’accès public aux tables des chatbots et de l’usage ; toutes les lectures passent par une route authentifiée et l’entreprise active.
 
@@ -425,6 +427,21 @@ L’icône peut être le nom d’une icône Lucide supportée par `DynamicIcon`.
 - payloads externes considérés comme non fiables et jamais injectés comme instructions système.
 
 Pour un service public, complétez ces protections applicatives par le pare-feu Vercel, une limitation de débit sur les routes non-IA, une politique de sauvegarde Supabase, la rotation des secrets, une surveillance des erreurs et la procédure de validation Google des scopes sensibles.
+
+## Console Super Admin de configuration
+
+La page `/admin/platform` centralise les fournisseurs IA, les modèles, les connexions OAuth, Stripe, les abonnements et les guides de configuration. Elle est réservée au Super Admin et toutes ses mutations sont revérifiées côté serveur.
+
+- Les secrets fournisseurs, OAuth et Stripe sont chiffrés avec AES-256-GCM avant leur stockage dans `platform_secrets`. Ils ne sont jamais renvoyés au navigateur : l’interface affiche uniquement un indice masqué.
+- OpenAI, Anthropic et les API compatibles OpenAI peuvent être configurés sans redéploiement. La synchronisation interroge leur catalogue de modèles lorsqu’un endpoint compatible existe.
+- Le catalogue `platform_ai_models` contrôle visibilité, modèle par défaut, capacités, limites, prix d’entrée/sortie/cache et marge commerciale. Le coût fournisseur réel reste calculé séparément depuis `model_pricing` afin de ne pas confondre coût et marge.
+- Les offres `subscription_plans` pilotent directement la tarification, les quotas de tokens, les modèles premium, le nombre de modèles, les agents, les automatisations, les membres, le stockage et les connecteurs.
+- La configuration `google-workspace` alimente réellement les flux Gmail, Calendar et Drive. Les autres intégrations disposent de la même structure extensible et peuvent brancher leur route OAuth sans changer le schéma.
+- La configuration Stripe et les identifiants `price_...` des offres sont chargés depuis la base. Les anciennes variables d’environnement restent uniquement un secours de transition.
+
+Trois secrets d’infrastructure restent obligatoirement hors de la base : l’URL Supabase, la clé serveur Supabase et `SECRETS_ENCRYPTION_KEY`. Cette dernière doit contenir une valeur aléatoire longue d’au moins 32 caractères, être ajoutée dans Vercel, sauvegardée dans un coffre-fort et ne jamais être modifiée sans procédure de rotation. Stocker la clé qui déchiffre les secrets dans la même base annulerait la protection.
+
+Après mise à jour du code, appliquer `supabase/migrations/20260721201923_add_platform_admin_configuration.sql` avec `npx supabase db push`, puis ouvrir `/admin/platform`. Aucun redéploiement n’est ensuite requis pour changer une clé, un prix, un quota ou l’état d’une intégration.
 
 ## Validation technique
 

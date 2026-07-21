@@ -43,7 +43,7 @@ export interface AccountPreferences {
 }
 
 export interface SubscriptionPlan {
-  id: "free" | "starter" | "pro" | "business" | "enterprise";
+  id: string;
   name: string;
   description: string;
   monthlyPriceCents: number;
@@ -52,6 +52,23 @@ export interface SubscriptionPlan {
   minuteRequestLimit: number;
   maxAgents: number;
   maxMembers: number;
+  annualPriceCents?: number;
+  currency?: string;
+  maxAutomations?: number;
+  storageLimitMb?: number;
+  contextLimitTokens?: number;
+  maxModels?: number;
+  premiumModels?: boolean;
+  connectorsEnabled?: boolean;
+  toolsEnabled?: boolean;
+  badges?: string[];
+  includedFeatures?: string[];
+  exclusiveFeatures?: string[];
+  limits?: Record<string, number>;
+  sortOrder?: number;
+  active?: boolean;
+  stripeMonthlyPriceId?: string;
+  stripeAnnualPriceId?: string;
   features: FeatureKey[];
   highlighted?: boolean;
   quoteOnly?: boolean;
@@ -72,6 +89,8 @@ export interface WorkspaceSubscription {
   minuteRequestLimit: number;
   totalCostNanoUsd: number;
   maxAgents: number;
+  maxModels: number;
+  premiumModels: boolean;
   memberCount: number;
   maxMembers: number;
   usageResetAt: string;
@@ -638,6 +657,17 @@ export interface ChatbotCitation {
   title: string;
 }
 
+export interface ContextFile {
+  id: string;
+  chatbotId?: string;
+  scope: "workspace" | "chatbot";
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: "active" | "blocked";
+  createdAt: string;
+}
+
 export interface ChatbotMessage {
   id: string;
   conversationId: string;
@@ -656,11 +686,12 @@ export interface Chatbot {
   name: string;
   slug: string;
   description: string;
-  provider: "openai";
+  provider: string;
   model: string;
   systemPrompt: string;
   memoryEnabled: boolean;
   learningEnabled: boolean;
+  globalLearningEnabled: boolean;
   webEnabled: boolean;
   isSystem: boolean;
   status: "active" | "paused";

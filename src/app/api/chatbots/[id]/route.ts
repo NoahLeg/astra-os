@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { openAIModels } from "@/config";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { BillingAccessError, requireSubscriptionFeature } from "@/lib/server/billing";
 import { deleteChatbot, getChatbot, listChatbotKnowledge, listConversations, updateChatbot } from "@/lib/server/chatbots";
 import { hasWorkspaceAccess } from "@/lib/server/database";
 
-const updateSchema = z.object({ name: z.string().trim().min(2).max(100).optional(), description: z.string().trim().max(500).optional(), model: z.enum(openAIModels.map((model) => model.id) as [string, ...string[]]).optional(), systemPrompt: z.string().trim().min(10).max(20_000).optional(), memoryEnabled: z.boolean().optional(), learningEnabled: z.boolean().optional(), webEnabled: z.boolean().optional(), status: z.enum(["active", "paused"]).optional() }).refine((value) => Object.keys(value).length > 0);
+const updateSchema = z.object({ name: z.string().trim().min(2).max(100).optional(), description: z.string().trim().max(500).optional(), model: z.string().trim().min(1).max(200).optional(), systemPrompt: z.string().trim().min(10).max(20_000).optional(), memoryEnabled: z.boolean().optional(), learningEnabled: z.boolean().optional(), globalLearningEnabled: z.boolean().optional(), webEnabled: z.boolean().optional(), status: z.enum(["active", "paused"]).optional() }).refine((value) => Object.keys(value).length > 0);
 async function session(request: Request) { const user = await getAuthenticatedUser(request); return user && await hasWorkspaceAccess(user.id, "operator") ? user : null; }
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {

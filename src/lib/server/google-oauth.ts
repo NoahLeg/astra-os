@@ -1,26 +1,14 @@
 import "server-only";
 
+import { getPlatformOAuthCredential } from "@/lib/server/platform-admin";
+
 export const googleConnectionIds = ["gmail", "calendar", "drive"] as const;
 export type GoogleConnectionId = typeof googleConnectionIds[number];
 
 const scopes: Record<GoogleConnectionId, string[]> = {
-  gmail: [
-    "openid",
-    "email",
-    "https://www.googleapis.com/auth/gmail.modify",
-  ],
-  calendar: [
-    "openid",
-    "email",
-    "https://www.googleapis.com/auth/calendar.readonly",
-    "https://www.googleapis.com/auth/calendar.events",
-  ],
-  drive: [
-    "openid",
-    "email",
-    "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/drive.file",
-  ],
+  gmail: ["openid", "email", "https://www.googleapis.com/auth/gmail.modify"],
+  calendar: ["openid", "email", "https://www.googleapis.com/auth/calendar.readonly", "https://www.googleapis.com/auth/calendar.events"],
+  drive: ["openid", "email", "https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file"],
 };
 
 export const googleWorkspaceScopes = Array.from(new Set(googleConnectionIds.flatMap((connectionId) => scopes[connectionId])));
@@ -31,27 +19,29 @@ export function getMissingGoogleWorkspaceScopes(grantedScope?: string) {
   return googleWorkspaceScopes.filter((scope) => scope.startsWith("https://") && !granted.has(scope));
 }
 
-function getCredentials() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error("GOOGLE_CLIENT_ID et GOOGLE_CLIENT_SECRET doivent être configurés côté serveur.");
-  return { clientId, clientSecret };
+async function getCredentials() {
+  const stored = await getPlatformOAuthCredential("google-workspace").catch(() => undefined);
+  const clientId = stored?.integration.clientId || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = stored?.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error("Configurez Google OAuth dans la console Super Admin.");
+  return { clientId, clientSecret, redirectUri: stored?.integration.redirectUri };
 }
 
 export function isGoogleConnectionId(value: string): value is GoogleConnectionId {
   return googleConnectionIds.includes(value as GoogleConnectionId);
 }
 
-export function getGoogleRedirectUri(requestUrl: string) {
-  return process.env.GOOGLE_REDIRECT_URI?.trim() || `${new URL(requestUrl).origin}/api/connections/google/callback`;
+export async function getGoogleRedirectUri(requestUrl: string) {
+  const credentials = await getCredentials();
+  return credentials.redirectUri || process.env.GOOGLE_REDIRECT_URI?.trim() || `${new URL(requestUrl).origin}/api/connections/google/callback`;
 }
 
-export function createGoogleAuthorizationUrl(input: { state: string; requestUrl: string; forceConsent: boolean }) {
-  const { clientId } = getCredentials();
+export async function createGoogleAuthorizationUrl(input: { state: string; requestUrl: string; forceConsent: boolean }) {
+  const { clientId } = await getCredentials();
   const authorizationUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authorizationUrl.search = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: getGoogleRedirectUri(input.requestUrl),
+    redirect_uri: await getGoogleRedirectUri(input.requestUrl),
     response_type: "code",
     scope: googleWorkspaceScopes.join(" "),
     access_type: "offline",
@@ -85,35 +75,18 @@ async function tokenRequest(parameters: Record<string, string>) {
   return response.json() as Promise<GoogleTokenResponse>;
 }
 
-export function exchangeGoogleAuthorizationCode(input: { code: string; requestUrl: string }) {
-  const { clientId, clientSecret } = getCredentials();
-  return tokenRequest({
-    code: input.code,
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: getGoogleRedirectUri(input.requestUrl),
-    grant_type: "authorization_code",
-  });
+export async function exchangeGoogleAuthorizationCode(input: { code: string; requestUrl: string }) {
+  const { clientId, clientSecret } = await getCredentials();
+  return tokenRequest({ code: input.code, client_id: clientId, client_secret: clientSecret, redirect_uri: await getGoogleRedirectUri(input.requestUrl), grant_type: "authorization_code" });
 }
 
-export function refreshGoogleAccessToken(refreshToken: string) {
-  const { clientId, clientSecret } = getCredentials();
-  return tokenRequest({
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-    grant_type: "refresh_token",
-  });
+export async function refreshGoogleAccessToken(refreshToken: string) {
+  const { clientId, clientSecret } = await getCredentials();
+  return tokenRequest({ refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret, grant_type: "refresh_token" });
 }
 
 export async function revokeGoogleToken(token: string) {
-  await fetch("https://oauth2.googleapis.com/revoke", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ token }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
-  });
+  await fetch("https://oauth2.googleapis.com/revoke", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token }), cache: "no-store", signal: AbortSignal.timeout(15_000) });
 }
 
 export function getGoogleTestEndpoint(connectionId: GoogleConnectionId) {

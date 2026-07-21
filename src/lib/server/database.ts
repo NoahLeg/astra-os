@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { activities, agents, approvals, automations, connections, goals, memoryItems, projects } from "@/mocks/data";
-import { accessRank, defaultAccountPreferences, defaultWorkspaceSettings, openAIModels } from "@/config";
+import { accessRank, defaultAccountPreferences, defaultWorkspaceSettings } from "@/config";
 import type { AccessLevel, AccountPreferences, AccountProfile, AccountStatus, WorkspaceData, WorkspaceSettings } from "@/types";
 
 type Collection = keyof WorkspaceData;
@@ -242,8 +242,7 @@ export async function getWorkspaceConfiguration(userId: string) {
   );
   const workspace = rows[0];
   const settings = { ...defaultWorkspaceSettings, ...(workspace?.settings ?? {}) };
-  const availableModels = new Set(openAIModels.map((model) => model.id));
-  const enabledModelIds = settings.enabledModelIds.filter((modelId) => availableModels.has(modelId as typeof openAIModels[number]["id"]));
+  const enabledModelIds = [...new Set(settings.enabledModelIds.filter(Boolean))];
   if (!enabledModelIds.length) enabledModelIds.push(defaultWorkspaceSettings.defaultModelId);
   const defaultModelId = enabledModelIds.includes(settings.defaultModelId) ? settings.defaultModelId : enabledModelIds[0];
   return { workspaceName: workspace?.name ?? context.workspaceName, settings: { ...settings, enabledModelIds, defaultModelId } };

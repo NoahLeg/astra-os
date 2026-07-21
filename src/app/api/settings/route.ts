@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { openAIModels } from "@/config";
 import { getAuthenticatedUser } from "@/lib/server/auth";
 import { getWorkspaceConfiguration, hasWorkspaceAccess, updateWorkspaceConfiguration } from "@/lib/server/database";
 
@@ -10,8 +9,8 @@ export const dynamic = "force-dynamic";
 const settingsSchema = z.object({
   locale: z.enum(["fr", "en"]),
   compactMode: z.boolean(),
-  enabledModelIds: z.array(z.enum(openAIModels.map((model) => model.id) as [typeof openAIModels[number]["id"], ...Array<typeof openAIModels[number]["id"]>])).min(1).max(openAIModels.length),
-  defaultModelId: z.enum(openAIModels.map((model) => model.id) as [typeof openAIModels[number]["id"], ...Array<typeof openAIModels[number]["id"]>]),
+  enabledModelIds: z.array(z.string().trim().min(1).max(200)).min(1).max(100),
+  defaultModelId: z.string().trim().min(1).max(200),
   defaultAutonomy: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   telemetryEnabled: z.boolean(),
   allowMemoryLearning: z.boolean(),

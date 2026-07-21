@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { getWorkspaceSubscriptionByWorkspaceId } from "@/lib/server/billing";
 import type { AccessLevel, AccountStatus, SubscriptionPlan, SubscriptionStatus, TeamMember } from "@/types";
 
 export interface AdminAccount {
@@ -55,7 +54,7 @@ export interface AdminAuditLog {
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-async function adminRequest<T>(pathName: string, init: RequestInit = {}): Promise<T> {
+export async function adminRequest<T>(pathName: string, init: RequestInit = {}): Promise<T> {
   if (!supabaseUrl || !supabaseSecretKey) throw new Error("Supabase Admin n’est pas configuré");
   const response = await fetch(`${supabaseUrl}/rest/v1/${pathName}`, {
     ...init,
@@ -109,14 +108,14 @@ function getEncryptionKey() {
   return key;
 }
 
-function encryptSecret(value: string) {
+export function encryptSecret(value: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", getEncryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
   return { encryptedValue: encrypted.toString("base64"), encryptionIv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64"), secretHint: value.slice(-4).padStart(8, "•") };
 }
 
-function decryptSecret(encryptedValue: string, encryptionIv: string, authTag: string) {
+export function decryptSecret(encryptedValue: string, encryptionIv: string, authTag: string) {
   const decipher = createDecipheriv("aes-256-gcm", getEncryptionKey(), Buffer.from(encryptionIv, "base64"));
   decipher.setAuthTag(Buffer.from(authTag, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(encryptedValue, "base64")), decipher.final()]).toString("utf8");
@@ -191,6 +190,7 @@ export async function listWorkspaceMembers(workspaceId: string): Promise<TeamMem
 }
 
 export async function inviteWorkspaceMember(input: { workspaceId: string; email: string; fullName: string; accessLevel: AccessLevel; redirectTo: string; actorUserId: string }) {
+  const { getWorkspaceSubscriptionByWorkspaceId } = await import("@/lib/server/billing");
   const subscription = await getWorkspaceSubscriptionByWorkspaceId(input.workspaceId);
   if (subscription.memberCount >= subscription.maxMembers) {
     throw new Error(`La limite de ${subscription.maxMembers} siège${subscription.maxMembers > 1 ? "s" : ""} de cette offre est atteinte.`);
@@ -225,6 +225,7 @@ export async function updateWorkspaceMember(input: { workspaceId: string; userId
   if (!membership) throw new Error("Ce membre n’appartient plus à l’entreprise.");
   if (membership.role === "owner") throw new Error("Le propriétaire de l’entreprise ne peut pas être modifié.");
   if (input.status === "active" && membership.status === "suspended") {
+    const { getWorkspaceSubscriptionByWorkspaceId } = await import("@/lib/server/billing");
     const subscription = await getWorkspaceSubscriptionByWorkspaceId(input.workspaceId);
     if (subscription.memberCount >= subscription.maxMembers) throw new Error(`La limite de ${subscription.maxMembers} sièges est atteinte.`);
   }

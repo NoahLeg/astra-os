@@ -1,10 +1,10 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
-import { openAIModels } from "@/config";
 import { getWorkspaceProviderSecret } from "@/lib/server/admin-service";
 import { authorizeAIRequest, recordAIUsage, recordFailedAIRequest } from "@/lib/server/ai-usage";
 import { getWorkspaceConfiguration, getWorkspaceIdForUser } from "@/lib/server/database";
+import { getPlatformModel, getPlatformProviderCredential, type ProviderKind } from "@/lib/server/platform-admin";
 import type { AIUsageEvent, FeatureKey } from "@/types";
 
 interface OpenAIResponsePayload {
@@ -32,6 +32,14 @@ interface OpenAIErrorPayload {
   error?: { message?: string; code?: string; type?: string };
 }
 
+interface AnthropicPayload {
+  id?: string;
+  model?: string;
+  content?: Array<{ type?: string; text?: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number };
+  error?: { message?: string };
+}
+
 export interface OpenAIResponseResult {
   content: string;
   model: string;
@@ -39,6 +47,12 @@ export interface OpenAIResponseResult {
   usage?: AIUsageEvent;
   citations: Array<{ url: string; title: string }>;
   webSearchUsed: boolean;
+}
+
+export interface OpenAIContextFile {
+  name: string;
+  mimeType: string;
+  dataBase64: string;
 }
 
 export class OpenAIRequestError extends Error {
@@ -67,14 +81,65 @@ function getResponseCitations(response: OpenAIResponsePayload) {
   return [...new Map(citations.map((citation) => [citation.url, citation])).values()].slice(0, 12);
 }
 
-function getResponsesEndpoint(baseUrl?: string) {
+function getResponsesEndpoint(baseUrl?: string, allowCustom = false) {
   const endpoint = new URL(baseUrl?.trim() || "https://api.openai.com/v1");
-  if (endpoint.protocol !== "https:" || endpoint.hostname !== "api.openai.com") {
+  if (endpoint.protocol !== "https:" || (!allowCustom && endpoint.hostname !== "api.openai.com")) {
     throw new OpenAIRequestError("L’URL OpenAI doit utiliser https://api.openai.com afin de protéger la clé API.", 400);
   }
   endpoint.pathname = endpoint.pathname.replace(/\/$/, "");
   if (!endpoint.pathname.endsWith("/responses")) endpoint.pathname += "/responses";
   return endpoint.toString();
+}
+
+function getAnthropicEndpoint(baseUrl?: string) {
+  const endpoint = new URL(baseUrl?.trim() || "https://api.anthropic.com");
+  if (endpoint.protocol !== "https:") throw new OpenAIRequestError("L’URL Anthropic doit utiliser HTTPS.", 400);
+  endpoint.pathname = `${endpoint.pathname.replace(/\/$/, "")}/v1/messages`.replace(/\/v1\/v1\//, "/v1/");
+  return endpoint.toString();
+}
+
+async function createAnthropicResponse(input: Parameters<typeof createOpenAIResponse>[0], usageEventId: string, maximumOutputTokens: number): Promise<OpenAIResponseResult> {
+  let response: Response;
+  const supportedFiles = (input.files ?? []).filter((file) => file.mimeType.startsWith("image/") || file.mimeType === "application/pdf");
+  const content: Array<Record<string, unknown>> = [{ type: "text", text: input.prompt }];
+  for (const file of supportedFiles) {
+    content.push(file.mimeType.startsWith("image/")
+      ? { type: "image", source: { type: "base64", media_type: file.mimeType, data: file.dataBase64 } }
+      : { type: "document", source: { type: "base64", media_type: "application/pdf", data: file.dataBase64 }, title: file.name });
+  }
+  try {
+    response = await fetch(getAnthropicEndpoint(input.baseUrl), {
+      method: "POST",
+      headers: { "x-api-key": input.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: input.model, system: input.instructions, messages: [{ role: "user", content }], max_tokens: maximumOutputTokens }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(60_000),
+    });
+  } catch (error) {
+    if (input.tracking) await recordFailedAIRequest({ id: usageEventId, userId: input.tracking.userId, feature: input.tracking.feature, provider: "anthropic", model: input.model, workspaceId: input.tracking.workspaceId, errorMessage: error instanceof Error ? error.message : "Échec réseau Anthropic" });
+    throw new OpenAIRequestError("Anthropic est temporairement inaccessible.", 503);
+  }
+  const requestId = response.headers.get("request-id") ?? undefined;
+  const payload = await response.json().catch(() => ({})) as AnthropicPayload;
+  if (!response.ok) {
+    const message = payload.error?.message ?? `Anthropic a renvoyé l’erreur ${response.status}.`;
+    if (input.tracking) await recordFailedAIRequest({ id: usageEventId, userId: input.tracking.userId, feature: input.tracking.feature, provider: "anthropic", model: input.model, workspaceId: input.tracking.workspaceId, providerRequestId: requestId, errorMessage: message });
+    throw new OpenAIRequestError(message, response.status);
+  }
+  const responseContent = payload.content?.filter((item) => item.type === "text").map((item) => item.text ?? "").join("\n").trim();
+  if (!responseContent) throw new OpenAIRequestError("Anthropic n’a renvoyé aucun texte exploitable.", 502);
+  let usage: AIUsageEvent | undefined;
+  if (input.tracking) {
+    const inputTokens = payload.usage?.input_tokens ?? 0;
+    const outputTokens = payload.usage?.output_tokens ?? 0;
+    usage = await retryUsagePersistence(() => recordAIUsage({
+      id: usageEventId, userId: input.tracking!.userId, feature: input.tracking!.feature, provider: "anthropic",
+      model: payload.model ?? input.model, providerRequestId: payload.id ?? requestId, workspaceId: input.tracking!.workspaceId,
+      usage: { inputTokens, cachedInputTokens: payload.usage?.cache_read_input_tokens ?? 0, outputTokens, reasoningTokens: 0, totalTokens: inputTokens + outputTokens },
+      pricingUnavailable: !payload.usage, metadata: { ...input.tracking!.metadata, unsupportedContextFiles: (input.files?.length ?? 0) - supportedFiles.length },
+    }));
+  }
+  return { content: responseContent, model: payload.model ?? input.model, requestId: payload.id ?? requestId, usage, citations: [], webSearchUsed: false };
 }
 
 function translateOpenAIError(status: number, payload: OpenAIErrorPayload) {
@@ -99,26 +164,28 @@ async function retryUsagePersistence<T>(operation: () => Promise<T>) {
   throw lastError;
 }
 
-export async function getOpenAIConfiguration(userId: string) {
+export async function getOpenAIConfiguration(userId: string, requestedModel?: string) {
   const workspaceId = await getWorkspaceIdForUser(userId);
   if (!workspaceId) throw new OpenAIRequestError("Aucun espace de travail associé à ce compte.", 404);
-  const storedCredential = await getWorkspaceProviderSecret({ workspaceId, provider: "openai", actorUserId: userId });
-  const apiKey = storedCredential?.secret ?? process.env.OPENAI_API_KEY?.trim();
+  const workspaceConfiguration = await getWorkspaceConfiguration(userId);
+  const model = requestedModel ?? workspaceConfiguration?.settings.defaultModelId ?? process.env.OPENAI_MODEL?.trim() ?? "gpt-5.4-mini";
+  const platformModel = await getPlatformModel(model).catch(() => undefined);
+  const provider = platformModel?.providerSlug === "anthropic" ? "anthropic" : platformModel?.providerSlug ? "openai_compatible" : "openai";
+  const providerSlug = platformModel?.providerSlug ?? "openai";
+  const [storedCredential, platformCredential] = await Promise.all([
+    getWorkspaceProviderSecret({ workspaceId, provider: providerSlug, actorUserId: userId }),
+    getPlatformProviderCredential(providerSlug).catch(() => undefined),
+  ]);
+  const environmentKey = provider === "anthropic" ? process.env.ANTHROPIC_API_KEY?.trim() : process.env.OPENAI_API_KEY?.trim();
+  const apiKey = storedCredential?.secret ?? platformCredential?.secret ?? environmentKey;
   if (!apiKey) {
     throw new OpenAIRequestError("Aucune clé OpenAI n’est configurée pour cette entreprise. Ajoutez-la dans la console Super Admin.", 409);
   }
-  const workspaceConfiguration = await getWorkspaceConfiguration(userId);
-  const supportedModels = new Set(openAIModels.map((model) => model.id));
-  const workspaceModel = workspaceConfiguration?.settings.defaultModelId;
-  const environmentModel = process.env.OPENAI_MODEL?.trim();
   return {
     apiKey,
-    baseUrl: storedCredential?.baseUrl,
-    model: workspaceModel && supportedModels.has(workspaceModel as typeof openAIModels[number]["id"])
-      ? workspaceModel
-      : environmentModel && supportedModels.has(environmentModel as typeof openAIModels[number]["id"])
-        ? environmentModel
-        : "gpt-5.4-mini",
+    baseUrl: storedCredential?.baseUrl ?? platformCredential?.provider.baseUrl,
+    model,
+    provider: provider as ProviderKind,
     workspaceId,
   };
 }
@@ -132,23 +199,28 @@ export async function createOpenAIResponse(input: {
   maxOutputTokens?: number;
   text?: Record<string, unknown>;
   webSearch?: boolean;
+  provider?: ProviderKind;
+  files?: OpenAIContextFile[];
   tracking?: { userId: string; workspaceId?: string; feature: FeatureKey; metadata?: Record<string, unknown> };
 }) : Promise<OpenAIResponseResult> {
   const usageEventId = randomUUID();
   const maximumOutputTokens = input.maxOutputTokens ?? 900;
   if (input.tracking) {
-    const estimatedInputTokens = input.instructions.length + input.prompt.length;
+    const estimatedFileTokens = (input.files ?? []).reduce((total, file) => total + Math.ceil(file.dataBase64.length * 0.75 / 4), 0);
+    const estimatedInputTokens = Math.ceil((input.instructions.length + input.prompt.length) / 4) + estimatedFileTokens;
     await authorizeAIRequest(input.tracking.userId, input.tracking.feature, {
       id: usageEventId,
-      provider: "openai",
+      provider: input.provider ?? "openai",
       model: input.model,
       reservedTokens: Math.max(1, Math.min(250_000, estimatedInputTokens + maximumOutputTokens)),
     }, 1, input.tracking.workspaceId);
   }
 
+  if (input.provider === "anthropic") return createAnthropicResponse(input, usageEventId, maximumOutputTokens);
+
   let response: Response;
   try {
-    response = await fetch(getResponsesEndpoint(input.baseUrl), {
+    response = await fetch(getResponsesEndpoint(input.baseUrl, input.provider === "openai_compatible"), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${input.apiKey}`,
@@ -157,13 +229,25 @@ export async function createOpenAIResponse(input: {
       body: JSON.stringify({
         model: input.model,
         instructions: input.instructions,
-        input: input.prompt,
+        input: input.files?.length ? [{
+          role: "user",
+          content: [
+            { type: "input_text", text: input.prompt },
+            ...input.files.map((file) => file.mimeType.startsWith("image/")
+              ? { type: "input_image", image_url: `data:${file.mimeType};base64,${file.dataBase64}`, detail: "auto" }
+              : { type: "input_file", filename: file.name, file_data: `data:${file.mimeType};base64,${file.dataBase64}` }),
+          ],
+        }] : input.prompt,
         max_output_tokens: maximumOutputTokens,
         service_tier: "default",
         store: false,
         ...(input.tracking ? { safety_identifier: createHash("sha256").update(input.tracking.userId).digest("hex") } : {}),
         ...(input.text ? { text: input.text } : {}),
-        ...(input.webSearch ? { tools: [{ type: "web_search" }] } : {}),
+        ...(input.webSearch ? {
+          tools: [{ type: "web_search", external_web_access: true }],
+          tool_choice: "required",
+          include: ["web_search_call.action.sources"],
+        } : {}),
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(60_000),
@@ -174,7 +258,7 @@ export async function createOpenAIResponse(input: {
         id: usageEventId,
         userId: input.tracking.userId,
         feature: input.tracking.feature,
-        provider: "openai",
+        provider: input.provider ?? "openai",
         model: input.model,
         workspaceId: input.tracking.workspaceId,
         errorMessage: error instanceof Error ? error.message : "Échec réseau OpenAI",
@@ -192,7 +276,7 @@ export async function createOpenAIResponse(input: {
         id: usageEventId,
         userId: input.tracking.userId,
         feature: input.tracking.feature,
-        provider: "openai",
+        provider: input.provider ?? "openai",
         model: input.model,
         workspaceId: input.tracking.workspaceId,
         providerRequestId: requestId,
@@ -210,7 +294,7 @@ export async function createOpenAIResponse(input: {
         id: usageEventId,
         userId: input.tracking.userId,
         feature: input.tracking.feature,
-        provider: "openai",
+        provider: input.provider ?? "openai",
         model: payload.model ?? input.model,
         workspaceId: input.tracking.workspaceId,
         providerRequestId: payload.id ?? requestId,
@@ -230,7 +314,7 @@ export async function createOpenAIResponse(input: {
       id: usageEventId,
       userId: tracking.userId,
       feature: tracking.feature,
-      provider: "openai",
+      provider: input.provider ?? "openai",
       model,
       providerRequestId: payload.id ?? requestId,
       workspaceId: tracking.workspaceId,
