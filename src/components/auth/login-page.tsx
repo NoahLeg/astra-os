@@ -8,6 +8,7 @@ import { z } from "zod";
 import { ArrowRight, Building2, CheckCircle2, Chrome, LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
 import { AstraMark } from "@/components/shared/astra-mark";
 import { GlassButton } from "@/components/ui/glass-button";
+import { GlassCard } from "@/components/ui/glass-card";
 import { GlassDecorative } from "@/components/ui/glass-decorative";
 import { LiquidGlassRoot } from "@/components/ui/liquid-glass-root";
 import { Input } from "@/components/ui/input";
@@ -108,7 +109,7 @@ export function LoginPage() {
       </section>
 
       <section className="flex items-center justify-center p-5 sm:p-10">
-        <div className="w-full max-w-md">
+        <GlassCard className="w-full max-w-md p-0 sm:p-0">
           <div className="mb-8 flex items-center gap-3 lg:hidden"><AstraMark className="size-9" /><span className="font-display font-bold">Astra OS</span></div>
           <div className="mb-7"><p className="astra-eyebrow">{mode === "login" ? "Bon retour" : "Créer votre espace"}</p><h2 className="mt-3 font-display text-3xl font-semibold tracking-tight">{mode === "login" ? "Connectez-vous à Astra" : "Lancez votre entreprise sur Astra"}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{mode === "login" ? "Retrouvez vos objectifs, vos agents et vos automatisations." : "Un espace de données indépendant sera créé pour votre organisation."}</p></div>
 
@@ -126,7 +127,7 @@ export function LoginPage() {
           </form>
           {mode === "login" ? <p className="mt-4 text-center"><a href="/forgot-password" className="text-sm font-medium text-primary hover:underline">Mot de passe oublié ?</a></p> : null}
           <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité de votre organisation.</p>
-        </div>
+        </GlassCard>
       </section>
     </LiquidGlassRoot>
   );

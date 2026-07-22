@@ -148,6 +148,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @keyframes pulse-soft { 0%,100% { opacity:.55; transform:scale(.96) } 50% { opacity:1; transform:scale(1.04) } }
 .animate-pulse-soft { animation: pulse-soft 2.4s ease-in-out infinite; }
 
+@keyframes orb-drift { 0%,100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(3%, 2%) scale(1.05); } 66% { transform: translate(-2%, -1%) scale(0.95); } }
+@keyframes orb-drift-slow { 0%,100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-4%, 3%) scale(1.08); } }
+@keyframes orb-drift-reverse { 0%,100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(-3%, -2%) scale(0.95); } 66% { transform: translate(2%, 1%) scale(1.05); } }
+.animate-orb-drift { animation: orb-drift 20s ease-in-out infinite; }
+.animate-orb-drift-slow { animation: orb-drift-slow 30s ease-in-out infinite; }
+.animate-orb-drift-reverse { animation: orb-drift-reverse 25s ease-in-out infinite; }
+
 /* Legacy feature surfaces inherit the tighter reference radius. */
 .rounded-2xl, .rounded-3xl { border-radius: 0.625rem; }
 
