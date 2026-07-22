@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Bot,
   BrainCircuit,
+  Clock3,
   ExternalLink,
   FileText,
   Globe2,
@@ -13,6 +14,7 @@ import {
   Plus,
   Save,
   Send,
+  Settings2,
   Sparkles,
   Trash2,
   WandSparkles,
@@ -34,6 +36,8 @@ import type {
   ContextFile,
 } from "@/types";
 
+type ChatbotTab = "chat" | "history" | "knowledge" | "files" | "settings";
+
 const emptyDraft = {
   name: "",
   description: "",
@@ -44,6 +48,19 @@ const emptyDraft = {
   globalLearningEnabled: false,
   webEnabled: false,
 };
+
+const chatbotTabs: Array<{
+  id: ChatbotTab;
+  label: string;
+  icon: typeof MessageSquareText;
+  description: string;
+}> = [
+  { id: "chat", label: "Discussion", icon: MessageSquareText, description: "Conversation en direct" },
+  { id: "history", label: "Conversations", icon: Clock3, description: "Sessions et historique" },
+  { id: "knowledge", label: "Connaissances", icon: BrainCircuit, description: "Memoire du bot" },
+  { id: "files", label: "Fichiers", icon: Paperclip, description: "Documents et contexte" },
+  { id: "settings", label: "Configuration", icon: Settings2, description: "Modele et permissions" },
+];
 
 export function ChatbotsPage() {
   const [openAIModels, setOpenAIModels] = useState<Array<{ id: string; name: string; description?: string; provider?: string }>>([...fallbackOpenAIModels]);
@@ -61,6 +78,7 @@ export function ChatbotsPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string>();
+  const [tab, setTab] = useState<ChatbotTab>("chat");
 
   const selected = useMemo(() => chatbots.find((item) => item.id === selectedId), [chatbots, selectedId]);
   const selectedConversation = useMemo(
@@ -128,6 +146,12 @@ export function ChatbotsPage() {
     };
   }, [selectedId]);
 
+  useEffect(() => {
+    if (!selected) {
+      setTab("chat");
+    }
+  }, [selected]);
+
   const updateSelected = <Key extends keyof Chatbot>(key: Key, value: Chatbot[Key]) => {
     if (!selected) return;
     setChatbots((items) => items.map((item) => (item.id === selected.id ? { ...item, [key]: value } : item)));
@@ -139,6 +163,7 @@ export function ChatbotsPage() {
       const chatbot = await chatbotService.create(draft);
       setChatbots((items) => [chatbot, ...items]);
       setSelectedId(chatbot.id);
+      setTab("chat");
       setCreateOpen(false);
       setDraft(emptyDraft);
       toast.success("Chatbot cree");
@@ -179,6 +204,7 @@ export function ChatbotsPage() {
     try {
       await chatbotService.delete(selected.id);
       await refreshList();
+      setTab("chat");
       toast.success("Chatbot supprime");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Suppression impossible");
@@ -256,6 +282,7 @@ export function ChatbotsPage() {
       setConversations((items) => [conversation, ...items]);
       setConversationId(conversation.id);
       setMessages([]);
+      setTab("chat");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Creation impossible");
     } finally {
@@ -270,6 +297,7 @@ export function ChatbotsPage() {
     try {
       setMessages(await chatbotService.messages(selected.id, id));
       setConversationId(id);
+      setTab("chat");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Historique indisponible");
     } finally {
@@ -337,7 +365,7 @@ export function ChatbotsPage() {
       <PageHeader
         eyebrow="Assistants specialises"
         title="Chatbots personnalises"
-        description="Creez des assistants persistants qui peuvent apprendre de vos echanges et consulter le web sous votre controle."
+        description="Retrouve une interface plus proche des produits IA modernes, avec navigation claire, sous-menu de travail et conversation mieux structuree."
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
@@ -346,354 +374,220 @@ export function ChatbotsPage() {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+      <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
         <Card className="border-border/70 bg-card/70 backdrop-blur">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Vos chatbots</CardTitle>
+            <CardTitle className="text-sm">Bibliotheque d'assistants</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {chatbots.length ? (
-              chatbots.map((chatbot) => (
-                <button
-                  key={chatbot.id}
-                  onClick={() => setSelectedId(chatbot.id)}
-                  className={`w-full rounded-2xl border p-3 text-left transition ${
-                    selectedId === chatbot.id
-                      ? "border-primary/40 bg-primary/10 shadow-sm shadow-primary/10"
-                      : "border-border/70 bg-background/40 hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={`mt-0.5 inline-flex size-9 items-center justify-center rounded-xl ${
-                        selectedId === chatbot.id ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
-                      }`}
-                    >
-                      <Bot className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium">{chatbot.name}</span>
-                        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
-                          {chatbot.status}
-                        </span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                        {chatbot.description || "Assistant configurable pour vos workflows et connaissances metier."}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {chatbot.memoryEnabled ? (
-                          <Badge className="border-violet-500/20 bg-violet-500/10 text-[10px] text-violet-600">Contexte</Badge>
-                        ) : null}
-                        {chatbot.learningEnabled ? (
-                          <Badge className="border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-600">Apprend</Badge>
-                        ) : null}
-                        {chatbot.webEnabled ? <Badge className="bg-cyan-500/10 text-[10px] text-cyan-600">Web</Badge> : null}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <p className="rounded-xl border border-dashed p-5 text-center text-xs text-muted-foreground">
-                Creez votre premier assistant.
+          <CardContent className="space-y-3">
+            <div className="rounded-2xl border border-border/70 bg-background/60 p-3">
+              <p className="text-xs font-medium text-foreground">Espace assistants</p>
+              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                Selectionnez un assistant, ouvrez sa discussion ou ajustez son contexte sans quitter la page.
               </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 overflow-hidden border-border/70 bg-card/75 backdrop-blur">
-          <CardHeader className="border-b border-border/60 pb-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <MessageSquareText className="size-5 text-primary" />
-                    Conversation
-                  </CardTitle>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Historique, citations et couts visibles dans une vue plus compacte.
-                  </p>
-                </div>
-                {selected ? (
-                  <div className="flex flex-wrap gap-2 text-[11px]">
-                    <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 font-medium text-foreground/80">
-                      {selected.model}
-                    </span>
-                    <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-muted-foreground">
-                      {messages.length} message{messages.length > 1 ? "s" : ""}
-                    </span>
-                    {selected.memoryEnabled ? (
-                      <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-violet-600">
-                        Contexte actif
-                      </span>
-                    ) : null}
-                    {selected.webEnabled ? (
-                      <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-600">
-                        Web autorise
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-              {selected ? (
-                <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void newConversation()}>
-                  <Plus className="size-3" />
-                  Nouvelle
-                </Button>
-              ) : null}
             </div>
-          </CardHeader>
 
-          <CardContent className="p-0">
-            {selected ? (
-              <div className="flex min-h-[680px] flex-col">
-                <div className="border-b border-border/60 px-4 py-3 sm:px-5">
-                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-                    <select
-                      value={conversationId ?? ""}
-                      disabled={Boolean(busy)}
-                      onChange={(event) => void switchConversation(event.target.value)}
-                      className="h-11 rounded-2xl border border-border/70 bg-background/80 px-3 text-sm shadow-sm"
-                    >
-                      <option value="">Nouvelle conversation</option>
-                      {conversations.map((conversation) => (
-                        <option key={conversation.id} value={conversation.id}>
-                          {conversation.title}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="rounded-2xl border border-border/70 bg-background/60 px-4 py-2.5 text-xs">
-                      <p className="font-medium text-foreground/90">{selectedConversation?.title || "Nouvelle discussion"}</p>
-                      <p className="mt-1 text-muted-foreground">
-                        Le fil reste compact et independant de la hauteur de page.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-1 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_42%)] px-3 py-3 sm:px-5 sm:py-4">
-                  <div className="flex h-[430px] flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background/75 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.45)]">
-                    <div className="border-b border-border/60 px-4 py-3 text-[11px] text-muted-foreground sm:px-5">
-                      {selected.systemPrompt
-                        ? "Le systeme conserve le ton, le contexte et les outils autorises pour cette session."
-                        : "Ajoutez un prompt systeme pour cadrer la personnalite et les regles du chatbot."}
-                    </div>
-
-                    <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
-                      {messages.length ? (
-                        messages.map((item) => (
-                          <div key={item.id} className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}>
-                            <div
-                              className={`max-w-[95%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[88%] ${
-                                item.role === "user"
-                                  ? "bg-primary text-primary-foreground"
-                                  : item.status === "failed"
-                                    ? "border border-rose-500/30 bg-rose-500/5"
-                                    : "border border-border/70 bg-card/90"
-                              }`}
-                            >
-                              <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] opacity-70">
-                                {item.role === "user" ? "Vous" : (
-                                  <>
-                                    <WandSparkles className="size-3" />
-                                    Assistant
-                                  </>
-                                )}
-                              </div>
-
-                              <p className="whitespace-pre-wrap break-words">{item.content}</p>
-
-                              {item.citations?.length ? (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  {item.citations.map((citation) => (
-                                    <a
-                                      key={citation.url}
-                                      href={citation.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-background/85 px-2.5 py-1 text-[10px] text-cyan-600 transition hover:border-cyan-500"
-                                    >
-                                      <ExternalLink className="size-3 shrink-0" />
-                                      <span className="truncate">{citation.title}</span>
-                                    </a>
-                                  ))}
-                                </div>
-                              ) : null}
-
-                              {item.usage ? (
-                                <div className="mt-3 flex flex-wrap gap-2 text-[10px] opacity-75">
-                                  <span className="rounded-full border border-current/10 px-2 py-1">
-                                    {item.usage.totalTokens.toLocaleString("fr-FR")} tokens
-                                  </span>
-                                  {item.usage.pricingStatus === "exact" && item.usage.totalCostNanoUsd !== undefined ? (
-                                    <span className="rounded-full border border-current/10 px-2 py-1">
-                                      {(item.usage.totalCostNanoUsd / 1_000_000_000).toLocaleString("fr-FR", {
-                                        style: "currency",
-                                        currency: "USD",
-                                        maximumFractionDigits: 6,
-                                      })}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="flex h-full min-h-60 flex-col items-center justify-center text-center">
-                          <span className="mb-4 inline-flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                            <MessageSquareText className="size-7" />
+            <div className="space-y-2">
+              {chatbots.length ? (
+                chatbots.map((chatbot) => (
+                  <button
+                    key={chatbot.id}
+                    onClick={() => setSelectedId(chatbot.id)}
+                    className={`w-full rounded-2xl border p-3 text-left transition ${
+                      selectedId === chatbot.id
+                        ? "border-primary/40 bg-primary/10 shadow-sm shadow-primary/10"
+                        : "border-border/70 bg-background/40 hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={`mt-0.5 inline-flex size-9 items-center justify-center rounded-xl ${
+                          selectedId === chatbot.id ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                        }`}
+                      >
+                        <Bot className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{chatbot.name}</span>
+                          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
+                            {chatbot.status}
                           </span>
-                          <p className="text-sm font-medium">Posez une premiere question a {selected.name}.</p>
-                          <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                            Le chat conserve les citations web, les couts et les connaissances autorisees, sans prendre toute la hauteur de la page.
-                          </p>
                         </div>
-                      )}
-                    </div>
-
-                    <div className="border-t border-border/60 bg-background/90 p-3 sm:p-4">
-                      <div className="rounded-[24px] border border-border/70 bg-background/90 p-2 shadow-sm">
-                        <div className="flex gap-2">
-                          <Textarea
-                            value={message}
-                            onChange={(event) => setMessage(event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" && !event.shiftKey) {
-                                event.preventDefault();
-                                void send();
-                              }
-                            }}
-                            placeholder="Dites a votre chatbot ce que vous voulez analyser, rediger ou automatiser..."
-                            className="min-h-[88px] border-0 bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
-                          />
-                          <Button size="icon" className="mt-auto size-11 shrink-0 rounded-2xl" disabled={busy === "send"} onClick={() => void send()}>
-                            {busy === "send" ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-1 pt-2 text-[11px] text-muted-foreground">
-                          <span>Entree pour envoyer, Maj + Entree pour une nouvelle ligne.</span>
-                          <span>{selected.learningEnabled ? "Les faits utiles peuvent enrichir le contexte." : "L'apprentissage est actuellement desactive."}</span>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                          {chatbot.description || "Assistant configurable pour vos workflows et connaissances metier."}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {chatbot.memoryEnabled ? (
+                            <Badge className="border-violet-500/20 bg-violet-500/10 text-[10px] text-violet-600">Contexte</Badge>
+                          ) : null}
+                          {chatbot.learningEnabled ? (
+                            <Badge className="border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-600">Apprend</Badge>
+                          ) : null}
+                          {chatbot.webEnabled ? <Badge className="bg-cyan-500/10 text-[10px] text-cyan-600">Web</Badge> : null}
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex min-h-[520px] items-center justify-center p-6 text-sm text-muted-foreground">
-                Selectionnez ou creez un chatbot.
-              </div>
-            )}
+                  </button>
+                ))
+              ) : (
+                <p className="rounded-xl border border-dashed p-5 text-center text-xs text-muted-foreground">
+                  Creez votre premier assistant.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         <div className="space-y-4">
-          {selected ? (
-            <>
-              <Card className="border-border/70 bg-card/70 backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="text-sm">Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Input value={selected.name} onChange={(event) => updateSelected("name", event.target.value)} aria-label="Nom" />
-                  <Input value={selected.description} onChange={(event) => updateSelected("description", event.target.value)} aria-label="Description" />
-                  <select value={selected.model} onChange={(event) => updateSelected("model", event.target.value)} className="h-10 w-full rounded-xl border bg-background px-3 text-sm">
-                    {openAIModels.map((model) => (
-                      <option key={model.id} value={model.id}>
-                        {model.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Textarea value={selected.systemPrompt} onChange={(event) => updateSelected("systemPrompt", event.target.value)} className="min-h-28" aria-label="Prompt systeme" />
-                  <CapabilityToggle
-                    icon={<BrainCircuit className="size-4 text-violet-500" />}
-                    title="Utiliser le contexte"
-                    description="Injecte la memoire de l'entreprise et les connaissances de ce chatbot."
-                    checked={selected.memoryEnabled}
-                    onChange={(checked) => {
-                      updateSelected("memoryEnabled", checked);
-                      if (!checked) updateSelected("learningEnabled", false);
-                    }}
-                  />
-                  <CapabilityToggle
-                    icon={<Sparkles className="size-4 text-amber-500" />}
-                    title="Apprendre des echanges"
-                    description="Extrait des faits durables pour enrichir les prochaines conversations."
-                    checked={selected.learningEnabled}
-                    disabled={!selected.memoryEnabled}
-                    onChange={(checked) => updateSelected("learningEnabled", checked)}
-                  />
-                  <CapabilityToggle
-                    icon={<Globe2 className="size-4 text-cyan-500" />}
-                    title="Acces au web"
-                    description="Autorise les recherches internet avec sources cliquables."
-                    checked={selected.webEnabled}
-                    onChange={(checked) => updateSelected("webEnabled", checked)}
-                  />
-                  <div className="flex gap-2">
-                    <Button className="flex-1" onClick={() => void save()} disabled={busy === "save"}>
-                      <Save className="size-4" />
-                      Enregistrer
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={() => void remove()} aria-label="Supprimer">
-                      <Trash2 className="size-4 text-rose-500" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/70 bg-card/70 backdrop-blur">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <BrainCircuit className="size-4 text-cyan-500" />
-                    Connaissances <Badge>{knowledge.length}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Input placeholder="Titre" value={knowledgeDraft.title} onChange={(event) => setKnowledgeDraft((value) => ({ ...value, title: event.target.value }))} />
-                  <Textarea placeholder="Information, procedure ou reference..." value={knowledgeDraft.content} onChange={(event) => setKnowledgeDraft((value) => ({ ...value, content: event.target.value }))} />
-                  <Button variant="outline" className="w-full" onClick={() => void addKnowledge()} disabled={busy === "knowledge"}>
-                    <Plus className="size-4" />
-                    Ajouter
-                  </Button>
-                  <div className="max-h-64 space-y-2 overflow-y-auto">
-                    {knowledge.map((item) => (
-                      <div key={item.id} className={`rounded-lg border p-2 ${item.blocked ? "border-amber-500/30 bg-amber-500/5" : ""}`}>
-                        <div className="flex gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1">
-                              <p className="truncate text-xs font-medium">{item.title}</p>
-                              {item.source === "Apprentissage conversationnel" ? <Sparkles className="size-3 text-amber-500" /> : null}
-                            </div>
-                            <p className="line-clamp-2 text-[11px] text-muted-foreground">{item.content}</p>
+          <Card className="overflow-hidden border-border/70 bg-card/75 backdrop-blur">
+            <CardContent className="p-0">
+              {selected ? (
+                <>
+                  <div className="border-b border-border/60 px-4 py-4 sm:px-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                            <Bot className="size-5" />
+                          </span>
+                          <div className="min-w-0">
+                            <h2 className="truncate text-xl font-semibold">{selected.name}</h2>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {selected.description || "Assistant specialise et configurable pour vos flux de travail."}
+                            </p>
                           </div>
-                          <button onClick={() => void removeKnowledge(item.id)} aria-label={`Supprimer ${item.title}`}>
-                            <Trash2 className="size-3 text-muted-foreground" />
-                          </button>
                         </div>
-                        <button onClick={() => void toggleKnowledge(item)} className="mt-2 text-[10px] font-medium text-primary">
-                          {item.blocked ? "Autoriser cette connaissance" : "Suspendre l'utilisation"}
-                        </button>
+                        <div className="mt-4 flex flex-wrap gap-2 text-[11px]">
+                          <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 font-medium text-foreground/80">
+                            {selected.model}
+                          </span>
+                          <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-muted-foreground">
+                            {messages.length} message{messages.length > 1 ? "s" : ""}
+                          </span>
+                          {selected.memoryEnabled ? (
+                            <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-violet-600">
+                              Contexte actif
+                            </span>
+                          ) : null}
+                          {selected.webEnabled ? (
+                            <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-600">
+                              Web autorise
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void newConversation()}>
+                          <Plus className="size-3" />
+                          Nouvelle discussion
+                        </Button>
+                        <Button size="sm" onClick={() => void save()} disabled={busy === "save"}>
+                          {busy === "save" ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
+                          Enregistrer
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="scrollbar-none flex gap-2 overflow-x-auto border-b border-border/60 px-3 py-3 sm:px-5">
+                    {chatbotTabs.map((item) => (
+                      <Button
+                        key={item.id}
+                        variant={tab === item.id ? "secondary" : "ghost"}
+                        className="shrink-0 rounded-xl"
+                        onClick={() => setTab(item.id)}
+                      >
+                        <item.icon className="size-4" />
+                        {item.label}
+                      </Button>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
 
-              <ContextFilesPanel
-                chatbot={selected}
-                files={contextFiles}
-                scope={fileScope}
-                busy={busy === "file"}
-                onScopeChange={setFileScope}
-                onGlobalLearningChange={(checked) => updateSelected("globalLearningEnabled", checked)}
-                onUpload={uploadContextFile}
-                onDelete={removeContextFile}
-              />
-            </>
-          ) : null}
+                  <div className="px-3 py-3 sm:px-5 sm:py-5">
+                    <div className="mb-4 rounded-2xl border border-border/70 bg-background/55 px-4 py-3">
+                      <p className="text-sm font-medium">{chatbotTabs.find((item) => item.id === tab)?.label}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {chatbotTabs.find((item) => item.id === tab)?.description}
+                      </p>
+                    </div>
+
+                    {tab === "chat" ? (
+                      <ChatPanel
+                        selected={selected}
+                        selectedConversation={selectedConversation}
+                        conversations={conversations}
+                        conversationId={conversationId}
+                        busy={busy}
+                        messages={messages}
+                        message={message}
+                        setMessage={setMessage}
+                        onSwitchConversation={switchConversation}
+                        onSend={send}
+                      />
+                    ) : null}
+
+                    {tab === "history" ? (
+                      <HistoryPanel
+                        conversations={conversations}
+                        conversationId={conversationId}
+                        busy={busy}
+                        onSwitchConversation={switchConversation}
+                        onNewConversation={newConversation}
+                      />
+                    ) : null}
+
+                    {tab === "knowledge" ? (
+                      <KnowledgePanel
+                        busy={busy}
+                        knowledge={knowledge}
+                        knowledgeDraft={knowledgeDraft}
+                        setKnowledgeDraft={setKnowledgeDraft}
+                        onAddKnowledge={addKnowledge}
+                        onToggleKnowledge={toggleKnowledge}
+                        onRemoveKnowledge={removeKnowledge}
+                      />
+                    ) : null}
+
+                    {tab === "files" ? (
+                      <ContextFilesPanel
+                        chatbot={selected}
+                        files={contextFiles}
+                        scope={fileScope}
+                        busy={busy === "file"}
+                        onScopeChange={setFileScope}
+                        onGlobalLearningChange={(checked) => updateSelected("globalLearningEnabled", checked)}
+                        onUpload={uploadContextFile}
+                        onDelete={removeContextFile}
+                      />
+                    ) : null}
+
+                    {tab === "settings" ? (
+                      <SettingsPanel
+                        selected={selected}
+                        openAIModels={openAIModels}
+                        onUpdateSelected={updateSelected}
+                        onSave={save}
+                        onRemove={remove}
+                        busy={busy}
+                      />
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="flex min-h-[620px] flex-col items-center justify-center px-6 text-center">
+                  <span className="mb-4 inline-flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <MessageSquareText className="size-7" />
+                  </span>
+                  <h2 className="text-lg font-semibold">Selectionnez un chatbot</h2>
+                  <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                    La page adopte maintenant une logique plus proche d'un vrai produit IA, avec sous-menu, discussions et configuration separes.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -742,6 +636,389 @@ export function ChatbotsPage() {
           </Button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function ChatPanel({
+  selected,
+  selectedConversation,
+  conversations,
+  conversationId,
+  busy,
+  messages,
+  message,
+  setMessage,
+  onSwitchConversation,
+  onSend,
+}: {
+  selected: Chatbot;
+  selectedConversation?: ChatbotConversation;
+  conversations: ChatbotConversation[];
+  conversationId?: string;
+  busy?: string;
+  messages: ChatbotMessage[];
+  message: string;
+  setMessage: (value: string) => void;
+  onSwitchConversation: (id: string) => void;
+  onSend: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <select
+          value={conversationId ?? ""}
+          disabled={Boolean(busy)}
+          onChange={(event) => void onSwitchConversation(event.target.value)}
+          className="h-11 rounded-2xl border border-border/70 bg-background/80 px-3 text-sm shadow-sm"
+        >
+          <option value="">Nouvelle conversation</option>
+          {conversations.map((conversation) => (
+            <option key={conversation.id} value={conversation.id}>
+              {conversation.title}
+            </option>
+          ))}
+        </select>
+        <div className="rounded-2xl border border-border/70 bg-background/60 px-4 py-2.5 text-xs">
+          <p className="font-medium text-foreground/90">{selectedConversation?.title || "Nouvelle discussion"}</p>
+          <p className="mt-1 text-muted-foreground">
+            Les messages restent visibles dans une zone compacte et scrollable.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_42%)]">
+        <div className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background/80 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.45)]">
+          <div className="border-b border-border/60 px-4 py-3 text-[11px] text-muted-foreground sm:px-5">
+            {selected.systemPrompt
+              ? "Le systeme conserve le ton, le contexte et les outils autorises pour cette session."
+              : "Ajoutez un prompt systeme pour cadrer la personnalite et les regles du chatbot."}
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
+            {messages.length ? (
+              messages.map((item) => (
+                <div key={item.id} className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[95%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-sm sm:max-w-[88%] ${
+                      item.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : item.status === "failed"
+                          ? "border border-rose-500/30 bg-rose-500/5"
+                          : "border border-border/70 bg-card/90"
+                    }`}
+                  >
+                    <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] opacity-70">
+                      {item.role === "user" ? (
+                        "Vous"
+                      ) : (
+                        <>
+                          <WandSparkles className="size-3" />
+                          Assistant
+                        </>
+                      )}
+                    </div>
+
+                    <p className="whitespace-pre-wrap break-words">{item.content}</p>
+
+                    {item.citations?.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.citations.map((citation) => (
+                          <a
+                            key={citation.url}
+                            href={citation.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-background/85 px-2.5 py-1 text-[10px] text-cyan-600 transition hover:border-cyan-500"
+                          >
+                            <ExternalLink className="size-3 shrink-0" />
+                            <span className="truncate">{citation.title}</span>
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {item.usage ? (
+                      <div className="mt-3 flex flex-wrap gap-2 text-[10px] opacity-75">
+                        <span className="rounded-full border border-current/10 px-2 py-1">
+                          {item.usage.totalTokens.toLocaleString("fr-FR")} tokens
+                        </span>
+                        {item.usage.pricingStatus === "exact" && item.usage.totalCostNanoUsd !== undefined ? (
+                          <span className="rounded-full border border-current/10 px-2 py-1">
+                            {(item.usage.totalCostNanoUsd / 1_000_000_000).toLocaleString("fr-FR", {
+                              style: "currency",
+                              currency: "USD",
+                              maximumFractionDigits: 6,
+                            })}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="flex h-full min-h-60 flex-col items-center justify-center text-center">
+                <span className="mb-4 inline-flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <MessageSquareText className="size-7" />
+                </span>
+                <p className="text-sm font-medium">Posez une premiere question a {selected.name}.</p>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                  L'interface se rapproche maintenant d'un produit conversationnel moderne, avec un centre de discussion principal et un sous-menu distinct.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border/60 bg-background/90 p-3 sm:p-4">
+            <div className="rounded-[24px] border border-border/70 bg-background/90 p-2 shadow-sm">
+              <div className="flex gap-2">
+                <Textarea
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      onSend();
+                    }
+                  }}
+                  placeholder="Ecrivez votre demande, votre brief ou votre instruction..."
+                  className="min-h-[88px] border-0 bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                />
+                <Button size="icon" className="mt-auto size-11 shrink-0 rounded-2xl" disabled={busy === "send"} onClick={onSend}>
+                  {busy === "send" ? <LoaderCircle className="size-4 animate-spin" /> : <Send className="size-4" />}
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-1 pt-2 text-[11px] text-muted-foreground">
+                <span>Entree pour envoyer, Maj + Entree pour une nouvelle ligne.</span>
+                <span>{selected.learningEnabled ? "Les faits utiles peuvent enrichir le contexte." : "L'apprentissage est actuellement desactive."}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistoryPanel({
+  conversations,
+  conversationId,
+  busy,
+  onSwitchConversation,
+  onNewConversation,
+}: {
+  conversations: ChatbotConversation[];
+  conversationId?: string;
+  busy?: string;
+  onSwitchConversation: (id: string) => void;
+  onNewConversation: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/55 px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">Conversations enregistrees</p>
+          <p className="mt-1 text-xs text-muted-foreground">Reprenez une session precise en un clic.</p>
+        </div>
+        <Button size="sm" variant="outline" disabled={Boolean(busy)} onClick={onNewConversation}>
+          <Plus className="size-3" />
+          Nouvelle
+        </Button>
+      </div>
+
+      <div className="grid gap-3">
+        {conversations.length ? (
+          conversations.map((conversation) => (
+            <button
+              key={conversation.id}
+              onClick={() => void onSwitchConversation(conversation.id)}
+              className={`rounded-2xl border p-4 text-left transition ${
+                conversation.id === conversationId
+                  ? "border-primary/40 bg-primary/10"
+                  : "border-border/70 bg-background/45 hover:bg-muted/50"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{conversation.title}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Derniere mise a jour le {new Date(conversation.updatedAt).toLocaleDateString("fr-FR")}
+                  </p>
+                </div>
+                <Clock3 className="size-4 shrink-0 text-muted-foreground" />
+              </div>
+            </button>
+          ))
+        ) : (
+          <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Aucune conversation enregistree pour le moment.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function KnowledgePanel({
+  busy,
+  knowledge,
+  knowledgeDraft,
+  setKnowledgeDraft,
+  onAddKnowledge,
+  onToggleKnowledge,
+  onRemoveKnowledge,
+}: {
+  busy?: string;
+  knowledge: ChatbotKnowledge[];
+  knowledgeDraft: { title: string; content: string };
+  setKnowledgeDraft: React.Dispatch<React.SetStateAction<{ title: string; content: string }>>;
+  onAddKnowledge: () => void;
+  onToggleKnowledge: (item: ChatbotKnowledge) => void;
+  onRemoveKnowledge: (id: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <Card className="border-border/70 bg-card/60">
+        <CardHeader>
+          <CardTitle className="text-sm">Bibliotheque de connaissances</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="max-h-[520px] space-y-2 overflow-y-auto">
+            {knowledge.length ? (
+              knowledge.map((item) => (
+                <div key={item.id} className={`rounded-xl border p-3 ${item.blocked ? "border-amber-500/30 bg-amber-500/5" : "border-border/70 bg-background/40"}`}>
+                  <div className="flex gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1">
+                        <p className="truncate text-sm font-medium">{item.title}</p>
+                        {item.source === "Apprentissage conversationnel" ? <Sparkles className="size-3 text-amber-500" /> : null}
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.content}</p>
+                    </div>
+                    <button onClick={() => onRemoveKnowledge(item.id)} aria-label={`Supprimer ${item.title}`}>
+                      <Trash2 className="size-3 text-muted-foreground" />
+                    </button>
+                  </div>
+                  <button onClick={() => onToggleKnowledge(item)} className="mt-3 text-[11px] font-medium text-primary">
+                    {item.blocked ? "Autoriser cette connaissance" : "Suspendre l'utilisation"}
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Aucune connaissance ajoutee.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 bg-card/60">
+        <CardHeader>
+          <CardTitle className="text-sm">Ajouter une connaissance</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input placeholder="Titre" value={knowledgeDraft.title} onChange={(event) => setKnowledgeDraft((value) => ({ ...value, title: event.target.value }))} />
+          <Textarea placeholder="Information, procedure ou reference..." value={knowledgeDraft.content} onChange={(event) => setKnowledgeDraft((value) => ({ ...value, content: event.target.value }))} className="min-h-40" />
+          <Button variant="outline" className="w-full" onClick={onAddKnowledge} disabled={busy === "knowledge"}>
+            <Plus className="size-4" />
+            Ajouter
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SettingsPanel({
+  selected,
+  openAIModels,
+  onUpdateSelected,
+  onSave,
+  onRemove,
+  busy,
+}: {
+  selected: Chatbot;
+  openAIModels: Array<{ id: string; name: string; description?: string; provider?: string }>;
+  onUpdateSelected: <Key extends keyof Chatbot>(key: Key, value: Chatbot[Key]) => void;
+  onSave: () => void;
+  onRemove: () => void;
+  busy?: string;
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <Card className="border-border/70 bg-card/60">
+        <CardHeader>
+          <CardTitle className="text-sm">Configuration du chatbot</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input value={selected.name} onChange={(event) => onUpdateSelected("name", event.target.value)} aria-label="Nom" />
+          <Input value={selected.description} onChange={(event) => onUpdateSelected("description", event.target.value)} aria-label="Description" />
+          <select value={selected.model} onChange={(event) => onUpdateSelected("model", event.target.value)} className="h-10 w-full rounded-xl border bg-background px-3 text-sm">
+            {openAIModels.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+          <Textarea value={selected.systemPrompt} onChange={(event) => onUpdateSelected("systemPrompt", event.target.value)} className="min-h-36" aria-label="Prompt systeme" />
+          <CapabilityToggle
+            icon={<BrainCircuit className="size-4 text-violet-500" />}
+            title="Utiliser le contexte"
+            description="Injecte la memoire de l'entreprise et les connaissances de ce chatbot."
+            checked={selected.memoryEnabled}
+            onChange={(checked) => {
+              onUpdateSelected("memoryEnabled", checked);
+              if (!checked) onUpdateSelected("learningEnabled", false);
+            }}
+          />
+          <CapabilityToggle
+            icon={<Sparkles className="size-4 text-amber-500" />}
+            title="Apprendre des echanges"
+            description="Extrait des faits durables pour enrichir les prochaines conversations."
+            checked={selected.learningEnabled}
+            disabled={!selected.memoryEnabled}
+            onChange={(checked) => onUpdateSelected("learningEnabled", checked)}
+          />
+          <CapabilityToggle
+            icon={<Globe2 className="size-4 text-cyan-500" />}
+            title="Acces au web"
+            description="Autorise les recherches internet avec sources cliquables."
+            checked={selected.webEnabled}
+            onChange={(checked) => onUpdateSelected("webEnabled", checked)}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 bg-card/60">
+        <CardHeader>
+          <CardTitle className="text-sm">Actions rapides</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-2xl border border-border/70 bg-background/50 p-4">
+            <p className="text-sm font-medium">Sauvegarder les reglages</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Enregistrez le modele, le prompt systeme et les permissions de ce chatbot.
+            </p>
+            <Button className="mt-4 w-full" onClick={onSave} disabled={busy === "save"}>
+              {busy === "save" ? <LoaderCircle className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Enregistrer
+            </Button>
+          </div>
+
+          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
+            <p className="text-sm font-medium text-rose-500">Supprimer le chatbot</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Cette action supprime egalement l'historique et le contexte associe.
+            </p>
+            <Button variant="outline" className="mt-4 w-full" onClick={onRemove} disabled={busy === "delete"}>
+              <Trash2 className="size-4 text-rose-500" />
+              Supprimer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -799,73 +1076,84 @@ function ContextFilesPanel({
   onDelete: (file: ContextFile) => void;
 }) {
   return (
-    <Card className="border-border/70 bg-card/70 backdrop-blur">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Paperclip className="size-4 text-violet-500" />
-          Fichiers de contexte <Badge>{files.length}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <CapabilityToggle
-          icon={<Sparkles className="size-4 text-emerald-500" />}
-          title="Enrichir la memoire globale"
-          description="Les faits durables appris dans le chat deviennent accessibles a l'entreprise."
-          checked={chatbot.globalLearningEnabled}
-          disabled={!chatbot.learningEnabled}
-          onChange={onGlobalLearningChange}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <select
-            value={scope}
-            onChange={(event) => onScopeChange(event.target.value as ContextFile["scope"])}
-            className="h-10 rounded-xl border bg-background px-3 text-xs"
-            aria-label="Portee du fichier"
-          >
-            <option value="chatbot">Ce chatbot</option>
-            <option value="workspace">Toute l'entreprise</option>
-          </select>
-          <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border bg-background px-3 text-xs font-medium hover:bg-muted">
-            {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
-            Importer
-            <input
-              type="file"
-              className="sr-only"
-              disabled={busy || !chatbot.memoryEnabled}
-              accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.txt,.md,.json,.html,.xml,.csv,.doc,.docx,.rtf,.odt,.ppt,.pptx,.xls,.xlsx"
-              onChange={(event) => {
-                onUpload(event.target.files?.[0]);
-                event.currentTarget.value = "";
-              }}
-            />
-          </label>
-        </div>
-        <p className="text-[10px] leading-4 text-muted-foreground">
-          Images, PDF, documents et tableurs, 4 Mo maximum. Jusqu'a trois fichiers pertinents sont analyses par reponse.
-        </p>
-        <div className="max-h-52 space-y-2 overflow-y-auto">
-          {files.map((file) => (
-            <div key={file.id} className="flex items-center gap-2 rounded-lg border p-2">
-              <FileText className="size-4 shrink-0 text-cyan-500" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium">{file.name}</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {file.scope === "workspace" ? "Entreprise" : "Chatbot"} -{" "}
-                  {(file.sizeBytes / 1024).toLocaleString("fr-FR", { maximumFractionDigits: 0 })} Ko
-                </p>
-              </div>
-              <button onClick={() => onDelete(file)} aria-label={`Supprimer ${file.name}`}>
-                <Trash2 className="size-3 text-muted-foreground hover:text-rose-500" />
-              </button>
-            </div>
-          ))}
-          {!files.length ? (
-            <p className="rounded-lg border border-dashed p-3 text-center text-[11px] text-muted-foreground">
-              Aucun fichier de contexte.
-            </p>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <Card className="border-border/70 bg-card/60">
+        <CardHeader>
+          <CardTitle className="text-sm">Parametres de contexte</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <CapabilityToggle
+            icon={<Sparkles className="size-4 text-emerald-500" />}
+            title="Enrichir la memoire globale"
+            description="Les faits durables appris dans le chat deviennent accessibles a l'entreprise."
+            checked={chatbot.globalLearningEnabled}
+            disabled={!chatbot.learningEnabled}
+            onChange={onGlobalLearningChange}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={scope}
+              onChange={(event) => onScopeChange(event.target.value as ContextFile["scope"])}
+              className="h-10 rounded-xl border bg-background px-3 text-xs"
+              aria-label="Portee du fichier"
+            >
+              <option value="chatbot">Ce chatbot</option>
+              <option value="workspace">Toute l'entreprise</option>
+            </select>
+            <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border bg-background px-3 text-xs font-medium hover:bg-muted">
+              {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+              Importer
+              <input
+                type="file"
+                className="sr-only"
+                disabled={busy || !chatbot.memoryEnabled}
+                accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.txt,.md,.json,.html,.xml,.csv,.doc,.docx,.rtf,.odt,.ppt,.pptx,.xls,.xlsx"
+                onChange={(event) => {
+                  onUpload(event.target.files?.[0]);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          </div>
+          <p className="text-[10px] leading-4 text-muted-foreground">
+            Images, PDF, documents et tableurs, 4 Mo maximum. Jusqu'a trois fichiers pertinents sont analyses par reponse.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 bg-card/60">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Paperclip className="size-4 text-violet-500" />
+            Fichiers de contexte <Badge>{files.length}</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="max-h-[420px] space-y-2 overflow-y-auto">
+            {files.length ? (
+              files.map((file) => (
+                <div key={file.id} className="flex items-center gap-2 rounded-lg border p-3">
+                  <FileText className="size-4 shrink-0 text-cyan-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium">{file.name}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {file.scope === "workspace" ? "Entreprise" : "Chatbot"} -{" "}
+                      {(file.sizeBytes / 1024).toLocaleString("fr-FR", { maximumFractionDigits: 0 })} Ko
+                    </p>
+                  </div>
+                  <button onClick={() => onDelete(file)} aria-label={`Supprimer ${file.name}`}>
+                    <Trash2 className="size-3 text-muted-foreground hover:text-rose-500" />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-lg border border-dashed p-6 text-center text-[11px] text-muted-foreground">
+                Aucun fichier de contexte.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
