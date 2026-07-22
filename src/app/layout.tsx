@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/goo
 import "./globals.css";
 import { AppProviders } from "@/components/layout/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
+import { GlassControlPanel } from "@/components/ui/glass-control-panel";
 
 const displayFont = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin"] });
 const bodyFont = IBM_Plex_Sans({ variable: "--font-ibm-plex-sans", subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -17,7 +18,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="fr" suppressHydrationWarning className={`dark ${displayFont.variable} ${bodyFont.variable} ${monoFont.variable}`}>
       <body className="antialiased">
-        <AppProviders><AppShell>{children}</AppShell></AppProviders>
+        <AppProviders>
+          <AppShell>{children}</AppShell>
+          <GlassControlPanel />
+        </AppProviders>
       </body>
     </html>
   );

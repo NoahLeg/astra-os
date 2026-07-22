@@ -5,16 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowRight, Building2, CheckCircle2, Chrome, LoaderCircle, LockKeyhole } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, Chrome, LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
 import { AstraMark } from "@/components/shared/astra-mark";
-import { LiquidGlassRoot } from "@/components/ui/liquid-glass-root";
-import { GlassPanel } from "@/components/ui/glass-panel";
 import { GlassButton } from "@/components/ui/glass-button";
-import { GlassBackground } from "@/components/ui/glass-background";
 import { Input } from "@/components/ui/input";
 
 const formSchema = z.object({
-  email: z.email("Saisissez une adresse email valide"),
+  email: z.string().email("Saisissez une adresse email valide"),
   password: z.string().min(1, "Saisissez votre mot de passe"),
   fullName: z.string().optional(),
   companyName: z.string().optional(),
@@ -42,7 +39,7 @@ export function LoginPage() {
     setServerError("");
     setConfirmationMessage("");
     if (mode === "signup" && (!values.fullName?.trim() || !values.companyName?.trim())) {
-      setServerError("Votre nom et le nom de l’entreprise sont obligatoires.");
+      setServerError("Votre nom et le nom de l'entreprise sont obligatoires.");
       return;
     }
     if (mode === "signup") {
@@ -56,7 +53,7 @@ export function LoginPage() {
       const response = await fetch(`/api/auth/${mode === "login" ? "login" : "signup"}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
       const result = await response.json().catch(() => ({})) as { error?: string; confirmationRequired?: boolean; onboardingCompleted?: boolean; landingPage?: string };
       if (!response.ok) {
-        setServerError(result.error ?? "Le service d’authentification est indisponible. Redémarrez le serveur, puis réessayez.");
+        setServerError(result.error ?? "Le service d'authentification est indisponible. Redémarrez le serveur, puis réessayez.");
         return;
       }
       if (result.confirmationRequired) {
@@ -79,14 +76,18 @@ export function LoginPage() {
   };
 
   return (
-    <LiquidGlassRoot className="grid min-h-screen bg-background lg:grid-cols-[1.08fr_.92fr]">
-      <GlassBackground />
-      <GlassPanel
-        preset="medium"
-        config={{ cornerRadius: 0, edgeHighlight: 0.12, refraction: 0.6 }}
-        as="section"
-        className="relative hidden border-0 border-r border-white/10 p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14"
-      >
+    <main className="relative grid min-h-screen bg-background lg:grid-cols-[1.08fr_.92fr]">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -left-[15%] -top-[15%] size-[45%] rounded-full bg-indigo-500/15 blur-[120px]" />
+        <div className="absolute -bottom-[15%] -right-[15%] size-[45%] rounded-full bg-violet-500/15 blur-[120px]" />
+      </div>
+
+      <div className="absolute right-8 top-8 z-10 hidden rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-medium text-white backdrop-blur-md lg:flex items-center gap-2">
+        <ShieldCheck className="size-3.5 text-emerald-400" />
+        Chiffré de bout en bout
+      </div>
+
+      <section className="relative hidden min-h-screen border-r border-white/10 bg-gradient-to-br from-[#0F0C29]/90 via-[#1A1645]/80 to-[#06070F]/90 p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
         <div className="astra-star-field" />
         <div className="relative flex items-center gap-3"><AstraMark className="size-9" /><div><p className="font-display text-lg font-bold">Astra OS</p><p className="font-mono text-[9px] uppercase tracking-[.16em] text-[#9DA6FF]">AI Operating System</p></div></div>
         <div className="relative grid items-center gap-8 2xl:grid-cols-[1fr_260px]">
@@ -95,19 +96,14 @@ export function LoginPage() {
             <p className="astra-eyebrow mt-5 text-[#9DA6FF]">Idée → Résultat</p>
             <h1 className="mt-4 max-w-[15ch] font-display text-4xl font-semibold leading-[1.08] xl:text-5xl">Reliez vos <span className="astra-accent-word">agents IA</span> au reste de votre entreprise.</h1>
             <p className="mt-5 max-w-lg leading-7 text-[#AFB2DE]">Coordonnez objectifs, outils, validations et automatisations dans un espace unique, traçable et isolé pour chaque organisation.</p>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2">{["Données isolées par entreprise", "Validation humaine intégrée", "Agents limités par permissions", "Historique et décisions traçables"].map((item) => <GlassPanel key={item} preset="subtle" config={{ cornerRadius: 12, blurAmount: 0.15 }} className="flex items-center gap-2 text-sm text-[#D5D7F3]"><CheckCircle2 className="size-4 text-[#8C9AFF]" />{item}</GlassPanel>)}</div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">{["Données isolées par entreprise", "Validation humaine intégrée", "Agents limités par permissions", "Historique et décisions traçables"].map((item) => <div key={item} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[#D5D7F3] backdrop-blur-md"><CheckCircle2 className="size-4 shrink-0 text-[#8C9AFF]" />{item}</div>)}</div>
           </div>
           <div className="hidden 2xl:flex items-center justify-center h-full"><AstraMark className="size-24 text-muted-foreground/30" /></div>
         </div>
         <p className="relative font-mono text-[10px] text-[#777BA8]">Authentification Supabase · Sessions HTTP-only · Secrets chiffrés</p>
-      </GlassPanel>
+      </section>
 
-      <GlassPanel
-        preset="vivid"
-        config={{ cornerRadius: 0, refraction: 0.7, edgeHighlight: 0.1, chromAberration: 0.08 }}
-        as="section"
-        className="app-canvas flex items-center justify-center p-5 sm:p-10"
-      >
+      <section className="flex items-center justify-center p-5 sm:p-10">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden"><AstraMark className="size-9" /><span className="font-display font-bold">Astra OS</span></div>
           <div className="mb-7"><p className="astra-eyebrow">{mode === "login" ? "Bon retour" : "Créer votre espace"}</p><h2 className="mt-3 font-display text-3xl font-semibold tracking-tight">{mode === "login" ? "Connectez-vous à Astra" : "Lancez votre entreprise sur Astra"}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{mode === "login" ? "Retrouvez vos objectifs, vos agents et vos automatisations." : "Un espace de données indépendant sera créé pour votre organisation."}</p></div>
@@ -127,7 +123,7 @@ export function LoginPage() {
           {mode === "login" ? <p className="mt-4 text-center"><a href="/forgot-password" className="text-sm font-medium text-primary hover:underline">Mot de passe oublié ?</a></p> : null}
           <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité de votre organisation.</p>
         </div>
-      </GlassPanel>
-    </LiquidGlassRoot>
+      </section>
+    </main>
   );
 }

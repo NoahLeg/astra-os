@@ -3,6 +3,7 @@
 import { type ReactNode, type MouseEvent } from "react"
 import { cn } from "@/lib/utils"
 import type { GlassConfig } from "@ybouane/liquidglass"
+import { useGlassConfig } from "./glass-config-context"
 
 interface GlassButtonProps {
   children: ReactNode
@@ -21,6 +22,7 @@ export function GlassButton({
   disabled,
   onClick,
 }: GlassButtonProps) {
+  const { overrides } = useGlassConfig()
   const merged: Partial<GlassConfig> = {
     button: true,
     cornerRadius: 24,
@@ -30,6 +32,7 @@ export function GlassButton({
     chromAberration: 0.05,
     specular: 0.1,
     ...config,
+    ...overrides,
   }
 
   const Comp = href ? "a" : "button"

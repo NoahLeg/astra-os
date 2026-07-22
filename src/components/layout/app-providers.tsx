@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/components/layout/theme-provider";
+import { GlassConfigProvider } from "@/components/ui/glass-config-context";
 import { applyInterfacePreferences } from "@/lib/interface-preferences";
 import { useAppStore } from "@/stores/app-store";
 import type { AccountPreferences, WorkspaceSubscription } from "@/types";
@@ -66,7 +67,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <ClientRuntime>{children}</ClientRuntime>
+        <GlassConfigProvider>
+          <ClientRuntime>{children}</ClientRuntime>
+        </GlassConfigProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
