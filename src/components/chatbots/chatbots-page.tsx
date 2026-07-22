@@ -408,7 +408,7 @@ export function ChatbotsPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <div className="rounded-[10px] border border-border/60 bg-background/50 backdrop-blur-sm">
+        <div className="rounded-[10px] border border-[var(--glass-border)] glass">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Bibliotheque d'assistants</CardTitle>
           </CardHeader>
@@ -473,7 +473,7 @@ export function ChatbotsPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-[10px] border border-border/60 bg-background/50 backdrop-blur-sm">
+          <div className="overflow-hidden rounded-[10px] border border-[var(--glass-border)] glass">
             <CardContent className="p-0">
               {selected ? (
                 <>
@@ -721,7 +721,7 @@ function ChatPanel({
         </div>
       </div>
 
-      <div className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-background/50 backdrop-blur-sm">
+      <div className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-[var(--glass-border)] glass">
           <div className="border-b border-border/60 px-4 py-3 text-[11px] text-muted-foreground sm:px-5">
             {selected.systemPrompt
               ? "Le systeme conserve le ton, le contexte et les outils autorises pour cette session."

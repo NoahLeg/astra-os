@@ -98,8 +98,8 @@ export function NotificationCenter() {
       </Button>
 
       {open ? (
-        <div className="glass fixed left-3 right-3 top-[4.25rem] z-[70] overflow-hidden rounded-[10px] border shadow-[0_24px_70px_-24px_rgba(10,11,30,.55)] sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[390px]">
-          <div className="flex items-center justify-between border-b p-4">
+        <div className="glass-strong fixed left-3 right-3 top-[4.25rem] z-[70] overflow-hidden rounded-[10px] border border-[var(--glass-border)] shadow-[var(--shadow-xl)] sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[390px]">
+          <div className="flex items-center justify-between border-b border-[var(--glass-border)] p-4">
             <div>
               <p className="font-display font-semibold">Notifications</p>
               <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[.08em] text-muted-foreground">

@@ -36,9 +36,32 @@
   --destructive: #dc265e;
   --ring: var(--indigo);
   --radius: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
   --font-display: var(--font-bricolage), "Bricolage Grotesque", sans-serif;
   --font-body: var(--font-ibm-plex-sans), "IBM Plex Sans", sans-serif;
   --font-code: var(--font-ibm-plex-mono), "IBM Plex Mono", monospace;
+
+  --glass-bg: color-mix(in srgb, var(--card) 65%, transparent);
+  --glass-bg-strong: color-mix(in srgb, var(--card) 80%, transparent);
+  --glass-border: color-mix(in srgb, var(--border) 50%, transparent);
+  --glass-blur: 14px;
+  --glass-blur-strong: 20px;
+  --glass-saturate: 135%;
+
+  --shadow-sm: 0 1px 3px rgba(9,8,35,.04), 0 1px 2px rgba(9,8,35,.06);
+  --shadow-md: 0 4px 12px rgba(9,8,35,.06), 0 2px 6px rgba(9,8,35,.04);
+  --shadow-lg: 0 8px 30px rgba(9,8,35,.08), 0 4px 12px rgba(9,8,35,.06);
+  --shadow-xl: 0 20px 60px rgba(9,8,35,.10), 0 8px 24px rgba(9,8,35,.08);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+
+  --surface-raised: var(--card);
+  --surface-overlay: var(--popover);
+  --surface-modal: var(--popover);
 }
 
 .dark {
@@ -57,6 +80,11 @@
   --accent-foreground: #d9dcff;
   --destructive: #ff5f8f;
   --ring: #8c9aff;
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.20), 0 1px 2px rgba(0,0,0,.15);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.18);
+  --shadow-lg: 0 8px 30px rgba(0,0,0,.30), 0 4px 12px rgba(0,0,0,.22);
+  --shadow-xl: 0 20px 60px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.25);
 }
 
 html[data-accent="cyan"] { --primary: #168ca8; --ring: #18a9c7; --accent: color-mix(in srgb, #18a9c7 14%, var(--background)); --accent-foreground: #0d7188; }
@@ -116,7 +144,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background-size: 42px 42px;
   background-position: -1px -1px;
 }
-.glass { background: color-mix(in srgb, var(--card) 90%, transparent); backdrop-filter: blur(14px) saturate(135%); }
+.glass { background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); }
+.glass-strong { background: var(--glass-bg-strong); backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate)); }
+.surface-raised { background: var(--surface-raised); }
+.surface-overlay { background: var(--surface-overlay); }
+.surface-modal { background: var(--surface-modal); }
 .dot-grid { background-image: radial-gradient(circle, color-mix(in srgb, var(--foreground) 10%, transparent) 1px, transparent 1px); background-size: 22px 22px; }
 .soft-grid { background-image: linear-gradient(color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px); background-size: 32px 32px; }
 .scrollbar-none { scrollbar-width: none; }
@@ -153,4 +185,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-soft { animation: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .glass-strong { background: var(--card); backdrop-filter: none; }
 }
