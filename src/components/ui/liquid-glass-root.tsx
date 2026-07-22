@@ -19,38 +19,12 @@ export function LiquidGlassRoot({ children, className, style }: LiquidGlassRootP
     if (!root) return
 
     let mounted = true
-    let retryCount = 0
-    const maxRetries = 10
+    const glassElements = root.querySelectorAll<HTMLElement>(".liquid-glass")
 
-    const init = async () => {
-      const glassElements = root.querySelectorAll<HTMLElement>(".liquid-glass")
-      if (glassElements.length === 0 && retryCount < maxRetries) {
-        retryCount++
-        setTimeout(init, 100)
-        return
-      }
-
-      try {
-        const instance = await LiquidGlass.init({
-          root,
-          glassElements,
-        })
-
-        if (!mounted) {
-          instance.destroy()
-          return
-        }
-
-        instanceRef.current = instance
-      } catch {
-        if (mounted && retryCount < maxRetries) {
-          retryCount++
-          setTimeout(init, 100)
-        }
-      }
-    }
-
-    init()
+    LiquidGlass.init({ root, glassElements }).then((instance) => {
+      if (!mounted) { instance.destroy(); return }
+      instanceRef.current = instance
+    }).catch(() => {})
 
     return () => {
       mounted = false

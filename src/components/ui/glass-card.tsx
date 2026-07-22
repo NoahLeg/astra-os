@@ -3,7 +3,6 @@
 import { type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import type { GlassConfig } from "@ybouane/liquidglass"
-import { LiquidGlassRoot } from "./liquid-glass-root"
 
 interface GlassCardProps {
   children: ReactNode
@@ -27,13 +26,12 @@ export function GlassCard({ children, config = {}, className, style }: GlassCard
   const merged: Partial<GlassConfig> = { ...iOS26_CARD, ...config }
 
   return (
-    <LiquidGlassRoot className={cn("rounded-[28px]", className)} style={style}>
-      <div
-        className="liquid-glass relative p-5 sm:p-6"
-        data-config={JSON.stringify(merged)}
-      >
-        {children}
-      </div>
-    </LiquidGlassRoot>
+    <div
+      className={cn("liquid-glass", className)}
+      data-config={JSON.stringify(merged)}
+      style={style}
+    >
+      {children}
+    </div>
   )
 }

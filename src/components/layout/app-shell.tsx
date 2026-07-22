@@ -11,9 +11,6 @@ import { CommandPalette } from "./command-palette";
 import { MobileSidebar } from "./mobile-sidebar";
 import { LoaderCircle } from "lucide-react";
 import { hasAccess, hasFeature, routes } from "@/config";
-import { LiquidGlassRoot } from "@/components/ui/liquid-glass-root";
-import { GlassDecorative } from "@/components/ui/glass-decorative";
-import { AnimatedBackground } from "@/components/ui/animated-background";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,21 +33,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md rounded-2xl border bg-card p-7 text-center"><h1 className="text-lg font-semibold">Fonctionnalité non incluse</h1><p className="mt-2 text-sm text-muted-foreground">Cette section n’est pas comprise dans l’abonnement actuel de votre entreprise.</p><Link href="/billing" className="mt-5 inline-flex rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">Comparer les offres</Link></div></div>;
   }
   return (
-    <>
-      <AnimatedBackground />
-      <LiquidGlassRoot className="app-canvas relative min-h-screen overflow-x-hidden bg-background">
-        <GlassDecorative shape="circle" preset="vivid" size="md" style={{ position: 'absolute', top: '12%', right: '6%', zIndex: 0, opacity: 0.7 }} />
-        <GlassDecorative shape="pill" preset="frosted" size="sm" style={{ position: 'absolute', bottom: '18%', left: '4%', zIndex: 0, opacity: 0.6 }} />
-        <GlassDecorative shape="blob" preset="subtle" size="lg" style={{ position: 'absolute', top: '25%', left: '-3%', zIndex: 0, opacity: 0.4 }} />
-        <Sidebar />
-        <MobileSidebar />
-        <div className={cn("min-h-screen transition-[margin] duration-300", sidebarCollapsed ? "lg:ml-[80px]" : "lg:ml-[264px]")}>
-          <Topbar />
-          <main className={cn("mx-auto w-full max-w-[1560px]", account?.preferences?.density === "compact" ? "p-3 md:p-4 xl:p-5" : "p-3 sm:p-5 md:p-7 xl:p-9")}>{children}</main>
-        </div>
-        <AssistantPanel />
-        <CommandPalette />
-      </LiquidGlassRoot>
-    </>
+    <div className="app-canvas min-h-screen bg-background">
+      <Sidebar />
+      <MobileSidebar />
+      <div className={cn("min-h-screen transition-[margin] duration-300", sidebarCollapsed ? "lg:ml-[80px]" : "lg:ml-[264px]")}>
+        <Topbar />
+        <main className={cn("mx-auto w-full max-w-[1560px]", account?.preferences?.density === "compact" ? "p-3 md:p-4 xl:p-5" : "p-3 sm:p-5 md:p-7 xl:p-9")}>{children}</main>
+      </div>
+      <AssistantPanel />
+      <CommandPalette />
+    </div>
   );
 }
