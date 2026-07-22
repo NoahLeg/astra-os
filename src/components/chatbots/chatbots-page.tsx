@@ -28,6 +28,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
+import { GlassPanel } from "@/components/ui/glass-panel";
+import { LiquidGlassRoot } from "@/components/ui/liquid-glass-root";
+import { GlassBackground } from "@/components/ui/glass-background";
 import { openAIModels as fallbackOpenAIModels } from "@/config";
 import { chatbotService } from "@/services";
 import type {
@@ -363,7 +366,8 @@ export function ChatbotsPage() {
   }
 
   return (
-    <div className="space-y-7">
+    <LiquidGlassRoot className="space-y-7">
+      <GlassBackground />
       <PageHeader
         eyebrow="Chatbots"
         title="Mes chatbots"
@@ -377,7 +381,7 @@ export function ChatbotsPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)_minmax(280px,0.8fr)]">
-        <div className="rounded-[28px] border border-border/60 bg-gradient-to-br from-indigo-500/8 to-violet-500/5 p-5 backdrop-blur-lg sm:p-6">
+        <GlassPanel preset="vivid" config={{ cornerRadius: 28, refraction: 0.7, blurAmount: 0.25, edgeHighlight: 0.12 }} className="rounded-[28px] border border-border/60 p-5 sm:p-6">
           <div className="flex items-center gap-3">
             <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-background/70 text-primary shadow-sm">
               <WandSparkles className="size-5" />
@@ -392,22 +396,22 @@ export function ChatbotsPage() {
             <Badge className="border-border/60 bg-background/50">Memoire controlee</Badge>
             <Badge className="border-border/60 bg-background/50">Sources web</Badge>
           </div>
-        </div>
+        </GlassPanel>
 
-        <div className="rounded-[24px] border border-border/60 bg-card/60 p-5 backdrop-blur-md">
+        <GlassPanel preset="medium" config={{ cornerRadius: 24, blurAmount: 0.15, refraction: 0.4 }} className="rounded-[24px] border border-border/60 p-5">
           <div className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[10px] font-medium text-primary">Assistants actifs</div>
           <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{chatbots.filter((item) => item.status === "active").length}</p>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">Chatbots disponibles dans cet espace</p>
-        </div>
-        <div className="rounded-[24px] border border-border/60 bg-card/60 p-5 backdrop-blur-md">
+        </GlassPanel>
+        <GlassPanel preset="medium" config={{ cornerRadius: 24, blurAmount: 0.15, refraction: 0.4 }} className="rounded-[24px] border border-border/60 p-5">
           <div className="inline-flex rounded-full border border-violet-500/20 bg-violet-500/5 px-2.5 py-1 text-[10px] font-medium text-violet-500">Conversations</div>
           <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{conversations.length}</p>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">Sessions sauvegardees pour le chatbot courant</p>
-        </div>
+        </GlassPanel>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <div className="rounded-[10px] border border-border/60 bg-card/60 backdrop-blur-md">
+        <GlassPanel preset="medium" config={{ cornerRadius: 10, blurAmount: 0.15, refraction: 0.4 }} className="rounded-[10px] border border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Bibliotheque d'assistants</CardTitle>
           </CardHeader>
@@ -469,10 +473,10 @@ export function ChatbotsPage() {
               )}
             </div>
           </CardContent>
-        </div>
+        </GlassPanel>
 
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-[10px] border border-border/60 bg-card/60 backdrop-blur-md">
+          <GlassPanel preset="medium" config={{ cornerRadius: 10, blurAmount: 0.15, refraction: 0.4 }} className="overflow-hidden rounded-[10px] border border-border/60">
             <CardContent className="p-0">
               {selected ? (
                 <>
@@ -620,7 +624,7 @@ export function ChatbotsPage() {
                 </div>
               )}
             </CardContent>
-          </div>
+          </GlassPanel>
         </div>
       </div>
 
@@ -669,7 +673,7 @@ export function ChatbotsPage() {
           </Button>
         </div>
       </Modal>
-    </div>
+    </LiquidGlassRoot>
   );
 }
 
@@ -697,7 +701,7 @@ function ChatPanel({
   onSend: () => void;
 }) {
   return (
-    <div className="space-y-4">
+    <LiquidGlassRoot className="space-y-4">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
         <select
           value={conversationId ?? ""}
@@ -720,7 +724,7 @@ function ChatPanel({
         </div>
       </div>
 
-      <div className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card/70 backdrop-blur-lg">
+      <GlassPanel preset="vivid" config={{ cornerRadius: 28, blurAmount: 0.25, refraction: 0.7, edgeHighlight: 0.12 }} className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-border/60">
           <div className="border-b border-border/60 px-4 py-3 text-[11px] text-muted-foreground sm:px-5">
             {selected.systemPrompt
               ? "Le systeme conserve le ton, le contexte et les outils autorises pour cette session."
@@ -876,8 +880,8 @@ function ChatPanel({
               </div>
             </div>
           </div>
-      </div>
-    </div>
+      </GlassPanel>
+    </LiquidGlassRoot>
   );
 }
 

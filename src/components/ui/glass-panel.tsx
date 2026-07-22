@@ -1,112 +1,72 @@
 "use client"
 
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { type ReactNode, type ElementType } from "react"
 import { cn } from "@/lib/utils"
-import "@/lib/liquid-glass-js/glass.css"
+import type { GlassConfig } from "@ybouane/liquidglass"
+
+export const GLASS_PRESETS: Record<string, Partial<GlassConfig>> = {
+  subtle: {
+    blurAmount: 0.1,
+    refraction: 0.3,
+    edgeHighlight: 0.03,
+    chromAberration: 0.02,
+  },
+  medium: {
+    blurAmount: 0.2,
+    refraction: 0.5,
+    edgeHighlight: 0.08,
+    chromAberration: 0.05,
+  },
+  vivid: {
+    blurAmount: 0.35,
+    refraction: 0.8,
+    edgeHighlight: 0.15,
+    chromAberration: 0.12,
+    specular: 0.15,
+    tintStrength: 0.1,
+  },
+  frosted: {
+    blurAmount: 0.25,
+    refraction: 0.6,
+    edgeHighlight: 0.05,
+  },
+  dark: {
+    blurAmount: 0.25,
+    refraction: 0.5,
+    brightness: -0.2,
+    edgeHighlight: 0.05,
+  },
+}
 
 interface GlassPanelProps {
   children: ReactNode
-  type?: "rounded" | "pill"
-  tintOpacity?: number
-  borderRadius?: number
+  preset?: keyof typeof GLASS_PRESETS
+  config?: Partial<GlassConfig>
   className?: string
+  as?: ElementType
+  style?: React.CSSProperties
 }
 
 export function GlassPanel({
   children,
-  type = "rounded",
-  tintOpacity = 0.15,
-  borderRadius,
+  preset,
+  config = {},
   className,
+  as: Tag = "div",
+  style,
 }: GlassPanelProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const instanceRef = useRef<any>(null)
-  const [status, setStatus] = useState<"loading" | "fallback">("loading")
-
-  useEffect(() => {
-    const canvas = document.createElement("canvas")
-    const gl = canvas.getContext("webgl") || canvas.getContext("webgl2")
-    if (!gl) {
-      setStatus("fallback")
-      return
-    }
-
-    let mounted = true
-
-    const init = async () => {
-      const { Container } = await import("@/lib/liquid-glass-js/container")
-
-      const container = containerRef.current
-      if (!mounted || !container) return
-
-      const instance = new Container({
-        borderRadius: borderRadius || 24,
-        type,
-        tintOpacity,
-      })
-
-      if (!mounted) return
-
-      while (container.firstChild) {
-        container.removeChild(container.firstChild)
-      }
-
-      if (instance.element) container.appendChild(instance.element)
-      instanceRef.current = instance
-
-      if (instance.element && container) {
-        for (const child of Array.from(container.children)) {
-          if (child !== instance.element) {
-            instance.element.appendChild(child)
-          }
-        }
-      }
-
-      const timeout = setTimeout(() => {
-        if (!instance.webglInitialized && mounted) {
-          cleanup()
-          setStatus("fallback")
-        }
-      }, 8000)
-    }
-
-    const cleanup = () => {
-      if (instanceRef.current) {
-        instanceRef.current.render = null
-        if (instanceRef.current.element?.parentNode) {
-          instanceRef.current.element.parentNode.removeChild(
-            instanceRef.current.element,
-          )
-        }
-        instanceRef.current = null
-      }
-    }
-
-    init()
-
-    return () => {
-      mounted = false
-      cleanup()
-    }
-  }, [type, tintOpacity, borderRadius])
-
-  if (status === "fallback") {
-    return (
-      <div
-        className={cn(
-          "rounded-2xl border border-border/60 bg-card/80 p-5 backdrop-blur-md sm:p-7 lg:p-9",
-          className,
-        )}
-      >
-        {children}
-      </div>
-    )
+  const merged: Partial<GlassConfig> = {
+    ...(preset ? GLASS_PRESETS[preset] : {}),
+    ...config,
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn("relative", className)}
-    />
+    <Tag
+      className={cn("liquid-glass", className)}
+      data-config={JSON.stringify(merged)}
+      style={style}
+    >
+      {children}
+    </Tag>
   )
 }
