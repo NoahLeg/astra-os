@@ -8,6 +8,8 @@ import { z } from "zod";
 import { ArrowRight, Building2, CheckCircle2, Chrome, LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
 import { AstraMark } from "@/components/shared/astra-mark";
 import { GlassButton } from "@/components/ui/glass-button";
+import { GlassDecorative } from "@/components/ui/glass-decorative";
+import { LiquidGlassRoot } from "@/components/ui/liquid-glass-root";
 import { Input } from "@/components/ui/input";
 
 const formSchema = z.object({
@@ -76,7 +78,9 @@ export function LoginPage() {
   };
 
   return (
-    <main className="relative grid min-h-screen bg-background lg:grid-cols-[1.08fr_.92fr]">
+    <LiquidGlassRoot className="relative grid min-h-screen bg-background lg:grid-cols-[1.08fr_.92fr]">
+      <GlassDecorative shape="circle" preset="vivid" size="lg" style={{ position: 'absolute', top: '-8%', right: '-4%', zIndex: 0, opacity: 0.6 }} />
+      <GlassDecorative shape="pill" preset="frosted" size="md" style={{ position: 'absolute', bottom: '10%', left: '-3%', zIndex: 0, opacity: 0.5 }} />
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <div className="absolute -left-[15%] -top-[15%] size-[45%] rounded-full bg-indigo-500/15 blur-[120px]" />
         <div className="absolute -bottom-[15%] -right-[15%] size-[45%] rounded-full bg-violet-500/15 blur-[120px]" />
@@ -124,6 +128,6 @@ export function LoginPage() {
           <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité de votre organisation.</p>
         </div>
       </section>
-    </main>
+    </LiquidGlassRoot>
   );
 }

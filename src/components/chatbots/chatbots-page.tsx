@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { GlassButton } from "@/components/ui/glass-button";
+import { GlassDecorative } from "@/components/ui/glass-decorative";
 import { openAIModels as fallbackOpenAIModels } from "@/config";
 import { chatbotService } from "@/services";
 import type {
@@ -364,7 +365,9 @@ export function ChatbotsPage() {
   }
 
   return (
-    <div className="space-y-7">
+    <div className="relative space-y-7">
+      <GlassDecorative shape="pill" preset="frosted" size="sm" style={{ position: 'absolute', top: '3%', right: '1%', zIndex: 0, opacity: 0.5 }} />
+      <GlassDecorative shape="circle" preset="vivid" size="sm" style={{ position: 'absolute', bottom: '15%', left: '-1%', zIndex: 0, opacity: 0.4 }} />
       <PageHeader
         eyebrow="Chatbots"
         title="Mes chatbots"

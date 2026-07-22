@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, type CSSProperties } from "react";
 import { ArrowRight, Bot, CalendarClock, CheckCircle2, ChevronRight, Clock3, FolderKanban, Gauge, Goal, Lightbulb, LoaderCircle, Play, ShieldCheck, Sparkles, TimerReset, Workflow, Zap } from "lucide-react";
 import { GlassButton } from "@/components/ui/glass-button";
+import { GlassDecorative } from "@/components/ui/glass-decorative";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { toast } from "sonner";
 import { AgentStatus, ConfidenceIndicator, RiskBadge } from "@/components/shared/indicators";
@@ -58,7 +59,9 @@ export function DashboardPage() {
     { label: "Réussite agents", value: `${averageSuccessRate} %`, delta: measuredAgents.length ? "Exécutions réelles" : "À mesurer", icon: Gauge, color: "text-pink-500", bg: "bg-pink-500/10", accent: "#FF4FA3" },
   ];
 
-  return <div className="space-y-6 md:space-y-8">
+  return <div className="relative space-y-6 md:space-y-8">
+    <GlassDecorative shape="circle" preset="vivid" size="sm" style={{ position: 'absolute', top: '5%', right: '2%', zIndex: 0, opacity: 0.6 }} />
+    <GlassDecorative shape="blob" preset="subtle" size="md" style={{ position: 'absolute', bottom: '10%', left: '-2%', zIndex: 0, opacity: 0.3 }} />
     <section className="relative overflow-hidden rounded-[18px] border border-border/60 bg-gradient-to-br from-background via-background/95 to-background/90 p-5 sm:p-7 lg:p-9">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,var(--primary)/8%,transparent_60%)]" />
       <div className="relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-center">
