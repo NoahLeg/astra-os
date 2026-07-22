@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { LiquidGlass } from "@dpawlikowski/liquid-glass/react";
 import { AlertTriangle, ArrowUp, CheckCircle2, LoaderCircle, Sparkles, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -85,7 +84,7 @@ export function AssistantPanel() {
         className={cn("fixed inset-y-0 right-0 z-[70] flex w-full max-w-[440px] flex-col border-l bg-card shadow-[0_0_80px_-24px_rgba(5,6,20,.7)] transition-transform duration-300", assistantOpen ? "translate-x-0" : "translate-x-full")}
         aria-label="Assistant Coordinateur"
       >
-        <LiquidGlass intensity="vivid" className="flex h-[76px] shrink-0 items-center gap-3 border-b border-border/60 px-5" style={{ "--lg-tint": "110 66 217", "--lg-opacity": "0.25", "--lg-blur": "14px", "--lg-saturate": "160%", "--lg-radius": "0", "--lg-border-opacity": "0.15" } as unknown as React.CSSProperties}>
+        <div className="flex h-[76px] shrink-0 items-center gap-3 border-b border-border/60 bg-gradient-to-r from-violet-500/10 to-transparent px-5">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary"><Sparkles className="size-5" /></span>
           <div className="flex-1">
             <p className="font-display text-sm font-semibold text-foreground">Assistant</p>
@@ -97,7 +96,7 @@ export function AssistantPanel() {
           <Button variant="ghost" size="icon" onClick={() => setAssistantOpen(false)} aria-label="Fermer">
             <X className="size-4" />
           </Button>
-        </LiquidGlass>
+        </div>
 
         <div className="app-canvas scrollbar-none flex-1 space-y-4 overflow-y-auto p-5">
           {messages.map((message) => (

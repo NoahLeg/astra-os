@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { LiquidGlass } from "@dpawlikowski/liquid-glass/react";
 import { Plus, Sparkles, X } from "lucide-react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Button } from "@/components/ui/button";
@@ -37,12 +36,12 @@ export function MobileSidebar() {
   return (
     <div className="fixed inset-0 z-[75] lg:hidden">
       <button type="button" className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} aria-label="Fermer la navigation" />
-      <LiquidGlass intensity="subtle" as="aside" role="dialog" aria-modal="true" aria-label="Navigation principale" className="flex h-full w-[min(88vw,320px)] flex-col overflow-hidden border-r border-border/60 shadow-xl" style={{ "--lg-tint": "58 76 224", "--lg-opacity": "0.3", "--lg-blur": "12px", "--lg-saturate": "150%", "--lg-radius": "0", "--lg-border-opacity": "0.15" } as unknown as React.CSSProperties}>
+      <aside role="dialog" aria-modal="true" aria-label="Navigation principale" className="flex h-full w-[min(88vw,320px)] flex-col overflow-hidden border-r border-border/60 bg-card/70 backdrop-blur-xl shadow-xl">
         <div className="flex h-[72px] items-center gap-3 border-b border-border/50 px-4"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary"><Sparkles className="size-4" /></span><div className="min-w-0 flex-1"><p className="font-display font-bold text-foreground">Astra</p><p className="font-mono text-[9px] uppercase tracking-[.18em] text-muted-foreground">Plateforme</p></div><Button variant="ghost" size="icon" onClick={() => setMobileSidebarOpen(false)} aria-label="Fermer"><X className="size-5" /></Button></div>
         <div className="p-3">{hasAccess(account?.accessLevel, "operator") ? <Link href="/goals/new" className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground"><Plus className="size-4" />Nouvel objectif</Link> : null}</div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">{visibleRoutes.map((route) => { const active = route.href === "/" ? pathname === "/" : pathname.startsWith(route.href); return <Link key={route.href} href={route.href} className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm ${active ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}><DynamicIcon name={route.icon} className={active ? "size-4 text-primary" : "size-4 text-muted-foreground"} /><span className="flex-1">{route.label}</span>{route.href === "/approvals" && pendingApprovals ? <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[9px] font-medium text-primary">{pendingApprovals}</span> : null}</Link>; })}</nav>
         <div className="space-y-2 border-t border-border/50 p-3"><div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/50 p-3"><span className="size-2 rounded-full bg-emerald-500" /><div><p className="text-xs font-medium text-foreground">Système opérationnel</p><p className="font-mono text-[9px] text-muted-foreground">{agents.filter((agent) => agent.status === "active").length} agents actifs</p></div></div><Link href="/account" className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted"><span className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#3A4CE0] to-[#6E42D9] text-xs font-semibold text-white">{initials}</span><span className="min-w-0"><span className="block truncate text-xs font-medium text-foreground">{displayName}</span><span className="block truncate font-mono text-[9px] text-muted-foreground">{account?.workspaceName ?? "Espace de travail"}</span></span></Link></div>
-      </LiquidGlass>
+      </aside>
     </div>
   );
 }

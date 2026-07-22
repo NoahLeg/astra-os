@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LiquidGlass } from "@dpawlikowski/liquid-glass/react";
 import { ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
 import { hasAccess, hasFeature, routes } from "@/config";
 import { cn } from "@/lib/utils";
@@ -19,7 +18,7 @@ export function Sidebar() {
   const activeAgents = agents.filter((agent) => agent.status === "active").length;
 
   return (
-    <LiquidGlass intensity="subtle" as="nav" className={cn("fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-border/60 transition-[width] duration-300 lg:flex", sidebarCollapsed ? "w-[80px]" : "w-[264px]")} style={{ "--lg-tint": "58 76 224", "--lg-opacity": "0.3", "--lg-blur": "12px", "--lg-saturate": "150%", "--lg-radius": "0", "--lg-border-opacity": "0.15" } as unknown as React.CSSProperties}>
+    <nav className={cn("fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-border/60 bg-card/60 backdrop-blur-lg transition-[width] duration-300 lg:flex", sidebarCollapsed ? "w-[80px]" : "w-[264px]")}>
       <div className="flex h-[72px] items-center gap-3 border-b border-border/50 px-5">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary"><Sparkles className="size-4" /></span>
         {!sidebarCollapsed ? <div className="min-w-0"><p className="font-display text-[17px] font-bold tracking-tight text-foreground">Astra</p><p className="font-mono text-[9px] uppercase tracking-[.18em] text-muted-foreground">Plateforme</p></div> : null}
@@ -41,6 +40,6 @@ export function Sidebar() {
         <div className={cn("rounded-lg border border-border/60 bg-background/50 p-3", sidebarCollapsed && "flex justify-center p-2.5")}><div className="flex items-center gap-2.5"><span className="relative flex size-2"><span className="relative inline-flex size-2 rounded-full bg-emerald-500" /></span>{!sidebarCollapsed ? <div><p className="text-xs font-medium text-foreground">Système opérationnel</p><p className="font-mono text-[9px] text-muted-foreground">{activeAgents} agents actifs</p></div> : null}</div></div>
         <div className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-muted"><Link href="/account" className="flex min-w-0 flex-1 items-center gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#3A4CE0] to-[#6E42D9] text-[10px] font-semibold text-white">{initials}</span>{!sidebarCollapsed ? <span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium text-foreground">{displayName}</span><span className="block truncate font-mono text-[9px] text-muted-foreground">{account?.workspaceName ?? "Espace de travail"}</span></span> : null}</Link><button type="button" onClick={toggleSidebar} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={sidebarCollapsed ? "Déployer la barre latérale" : "Réduire la barre latérale"}>{sidebarCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}</button></div>
       </div>
-    </LiquidGlass>
+    </nav>
   );
 }

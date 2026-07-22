@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@dpawlikowski/liquid-glass/css";
 
 @custom-variant dark (&:is(.dark *));
 
