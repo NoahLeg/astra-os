@@ -187,6 +187,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .animate-pulse-soft { animation: none; }
 }
 
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .glass, .glass-strong { background: var(--card); backdrop-filter: none; }
 }

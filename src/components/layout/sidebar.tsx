@@ -18,7 +18,7 @@ export function Sidebar() {
   const activeAgents = agents.filter((agent) => agent.status === "active").length;
 
   return (
-    <nav className={cn("fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-[var(--shadow-lg)] backdrop-blur-[var(--glass-blur-strong)] saturate-[var(--glass-saturate)] transition-[width] duration-300 lg:flex", sidebarCollapsed ? "w-[80px]" : "w-[264px]")}>
+    <nav className={cn("fixed inset-y-0 left-0 z-50 hidden flex-col overflow-hidden border-r border-[var(--glass-border)] bg-[var(--glass-bg-strong)] shadow-[var(--shadow-lg)] backdrop-blur-[var(--glass-blur-strong)] saturate-[var(--glass-saturate)] transition-[width] duration-300 lg:flex", sidebarCollapsed ? "w-[80px]" : "w-[264px]")}>
       <div className="flex h-[72px] items-center gap-3 border-b border-[var(--glass-border)] px-5">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-primary shadow-[var(--shadow-sm)]"><Sparkles className="size-4" /></span>
         {!sidebarCollapsed ? <div className="min-w-0"><p className="font-display text-[17px] font-bold tracking-tight text-foreground">Astra</p><p className="font-mono text-[9px] uppercase tracking-[.18em] text-muted-foreground">Plateforme</p></div> : null}
