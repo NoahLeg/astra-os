@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Bot,
   BrainCircuit,
@@ -755,7 +757,56 @@ function ChatPanel({
                       )}
                     </div>
 
-                    <p className="whitespace-pre-wrap break-words">{item.content}</p>
+                    <div className="markdown-content">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          table: ({ children }) => (
+                            <div className="my-3 overflow-x-auto rounded-xl border border-border/70">
+                              <table className="w-full text-sm">{children}</table>
+                            </div>
+                          ),
+                          thead: ({ children }) => (
+                            <thead className="border-b border-border/70 bg-muted/50">{children}</thead>
+                          ),
+                          th: ({ children }) => (
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{children}</th>
+                          ),
+                          td: ({ children }) => (
+                            <td className="border-t border-border/50 px-4 py-2.5 text-sm">{children}</td>
+                          ),
+                          code: ({ className, children, ...props }) => {
+                            const isInline = !className;
+                            if (isInline) {
+                              return <code className="rounded-md bg-muted/70 px-1.5 py-0.5 text-xs font-mono text-foreground" {...props}>{children}</code>;
+                            }
+                            return (
+                              <div className="my-3 overflow-x-auto rounded-xl border border-border/70 bg-muted/30 p-4">
+                                <code className="text-xs font-mono leading-6" {...props}>{children}</code>
+                              </div>
+                            );
+                          },
+                          pre: ({ children }) => <>{children}</>,
+                          p: ({ children }) => <p className="whitespace-pre-wrap break-words last:mb-0 [&:not(:first-child)]:mt-3">{children}</p>,
+                          ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+                          ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                          li: ({ children }) => <li className="text-sm leading-6">{children}</li>,
+                          h1: ({ children }) => <h1 className="mb-2 mt-4 text-lg font-semibold">{children}</h1>,
+                          h2: ({ children }) => <h2 className="mb-2 mt-3 text-base font-semibold">{children}</h2>,
+                          h3: ({ children }) => <h3 className="mb-1 mt-3 text-sm font-semibold">{children}</h3>,
+                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                          a: ({ href, children }) => (
+                            <a href={href} target="_blank" rel="noreferrer" className="text-cyan-600 underline decoration-cyan-600/30 underline-offset-2 hover:decoration-cyan-600">{children}</a>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="my-3 border-l-2 border-primary/30 pl-4 text-muted-foreground italic">{children}</blockquote>
+                          ),
+                          hr: () => <hr className="my-4 border-border/60" />,
+                        }}
+                      >
+                        {item.content}
+                      </ReactMarkdown>
+                    </div>
 
                     {item.citations?.length ? (
                       <div className="mt-3 flex flex-wrap gap-2">
