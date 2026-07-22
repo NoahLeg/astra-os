@@ -2,13 +2,18 @@ import "server-only";
 
 import { getPlatformOAuthCredential } from "@/lib/server/platform-admin";
 
-export const googleConnectionIds = ["gmail", "calendar", "drive"] as const;
+export const googleConnectionIds = ["gmail", "calendar", "drive", "docs", "sheets", "slides", "contacts", "tasks"] as const;
 export type GoogleConnectionId = typeof googleConnectionIds[number];
 
 const scopes: Record<GoogleConnectionId, string[]> = {
   gmail: ["openid", "email", "https://www.googleapis.com/auth/gmail.modify"],
   calendar: ["openid", "email", "https://www.googleapis.com/auth/calendar.readonly", "https://www.googleapis.com/auth/calendar.events"],
   drive: ["openid", "email", "https://www.googleapis.com/auth/drive.readonly", "https://www.googleapis.com/auth/drive.file"],
+  docs: ["openid", "email", "https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/drive.readonly"],
+  sheets: ["openid", "email", "https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.readonly"],
+  slides: ["openid", "email", "https://www.googleapis.com/auth/presentations", "https://www.googleapis.com/auth/drive.readonly"],
+  contacts: ["openid", "email", "https://www.googleapis.com/auth/contacts.readonly"],
+  tasks: ["openid", "email", "https://www.googleapis.com/auth/tasks", "https://www.googleapis.com/auth/tasks.readonly"],
 };
 
 export const googleWorkspaceScopes = Array.from(new Set(googleConnectionIds.flatMap((connectionId) => scopes[connectionId])));
@@ -92,5 +97,16 @@ export async function revokeGoogleToken(token: string) {
 export function getGoogleTestEndpoint(connectionId: GoogleConnectionId) {
   if (connectionId === "gmail") return "https://gmail.googleapis.com/gmail/v1/users/me/profile";
   if (connectionId === "calendar") return "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1";
-  return "https://www.googleapis.com/drive/v3/about?fields=user";
+  if (connectionId === "drive") return "https://www.googleapis.com/drive/v3/about?fields=user";
+  if (connectionId === "docs") {
+    return "https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id,name)&q=mimeType%3D%27application%2Fvnd.google-apps.document%27";
+  }
+  if (connectionId === "sheets") {
+    return "https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id,name)&q=mimeType%3D%27application%2Fvnd.google-apps.spreadsheet%27";
+  }
+  if (connectionId === "slides") {
+    return "https://www.googleapis.com/drive/v3/files?pageSize=1&fields=files(id,name)&q=mimeType%3D%27application%2Fvnd.google-apps.presentation%27";
+  }
+  if (connectionId === "contacts") return "https://people.googleapis.com/v1/people/me/connections?pageSize=1&personFields=names,emailAddresses";
+  return "https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=1";
 }

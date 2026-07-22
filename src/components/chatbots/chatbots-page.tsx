@@ -374,8 +374,43 @@ export function ChatbotsPage() {
         }
       />
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)_minmax(280px,0.8fr)]">
+        <div className="relative overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(135deg,rgba(59,130,246,0.16),rgba(14,165,233,0.06)_42%,rgba(255,255,255,0.02))] p-5 sm:p-6">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_30%)]" />
+          <div className="relative">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-background/70 text-primary shadow-sm">
+                <WandSparkles className="size-5" />
+              </span>
+              <div>
+                <p className="text-sm font-medium">Studio conversationnel</p>
+                <p className="mt-1 text-xs text-muted-foreground">Un espace unique pour discuter, enrichir le contexte et piloter chaque assistant.</p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Badge className="border-white/10 bg-background/60 text-foreground">Chat persistant</Badge>
+              <Badge className="border-white/10 bg-background/60 text-foreground">Memoire controlee</Badge>
+              <Badge className="border-white/10 bg-background/60 text-foreground">Sources web</Badge>
+            </div>
+          </div>
+        </div>
+
+        <MetricCard
+          title="Assistants actifs"
+          value={String(chatbots.filter((item) => item.status === "active").length)}
+          description="Chatbots disponibles dans cet espace"
+          tone="blue"
+        />
+        <MetricCard
+          title="Conversations"
+          value={String(conversations.length)}
+          description="Sessions sauvegardees pour le chatbot courant"
+          tone="violet"
+        />
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <Card className="border-border/70 bg-card/70 backdrop-blur">
+        <Card className="border-border/70 bg-card/70 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.55)] backdrop-blur">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Bibliotheque d'assistants</CardTitle>
           </CardHeader>
@@ -440,13 +475,14 @@ export function ChatbotsPage() {
         </Card>
 
         <div className="space-y-4">
-          <Card className="overflow-hidden border-border/70 bg-card/75 backdrop-blur">
+          <Card className="overflow-hidden border-border/70 bg-card/75 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.6)] backdrop-blur">
             <CardContent className="p-0">
               {selected ? (
                 <>
-                  <div className="border-b border-border/60 px-4 py-4 sm:px-6">
+                  <div className="relative border-b border-border/60 px-4 py-4 sm:px-6">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_34%)]" />
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0">
+                      <div className="relative min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
                           <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                             <Bot className="size-5" />
@@ -478,7 +514,7 @@ export function ChatbotsPage() {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="relative flex flex-wrap gap-2">
                         <Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={() => void newConversation()}>
                           <Plus className="size-3" />
                           Nouvelle discussion
@@ -491,7 +527,7 @@ export function ChatbotsPage() {
                     </div>
                   </div>
 
-                  <div className="scrollbar-none flex gap-2 overflow-x-auto border-b border-border/60 px-3 py-3 sm:px-5">
+                  <div className="scrollbar-none flex gap-2 overflow-x-auto border-b border-border/60 bg-background/35 px-3 py-3 sm:px-5">
                     {chatbotTabs.map((item) => (
                       <Button
                         key={item.id}
@@ -1019,6 +1055,31 @@ function SettingsPanel({
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  description,
+  tone,
+}: {
+  title: string;
+  value: string;
+  description: string;
+  tone: "blue" | "violet";
+}) {
+  const toneClass =
+    tone === "blue"
+      ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-600"
+      : "border-violet-500/20 bg-violet-500/5 text-violet-600";
+
+  return (
+    <div className="rounded-[24px] border border-border/70 bg-card/70 p-5 shadow-[0_20px_50px_-42px_rgba(15,23,42,0.55)] backdrop-blur">
+      <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-medium ${toneClass}`}>{title}</div>
+      <p className="mt-4 text-3xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
     </div>
   );
 }
