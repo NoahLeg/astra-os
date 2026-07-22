@@ -99,6 +99,7 @@ function getAnthropicEndpoint(baseUrl?: string) {
 }
 
 async function createAnthropicResponse(input: Parameters<typeof createOpenAIResponse>[0], usageEventId: string, maximumOutputTokens: number): Promise<OpenAIResponseResult> {
+  const billingProvider = input.providerSlug ?? "anthropic";
   let response: Response;
   const supportedFiles = (input.files ?? []).filter((file) => file.mimeType.startsWith("image/") || file.mimeType === "application/pdf");
   const content: Array<Record<string, unknown>> = [{ type: "text", text: input.prompt }];
@@ -116,14 +117,14 @@ async function createAnthropicResponse(input: Parameters<typeof createOpenAIResp
       signal: AbortSignal.timeout(60_000),
     });
   } catch (error) {
-    if (input.tracking) await recordFailedAIRequest({ id: usageEventId, userId: input.tracking.userId, feature: input.tracking.feature, provider: "anthropic", model: input.model, workspaceId: input.tracking.workspaceId, errorMessage: error instanceof Error ? error.message : "Échec réseau Anthropic" });
+    if (input.tracking) await recordFailedAIRequest({ id: usageEventId, userId: input.tracking.userId, feature: input.tracking.feature, provider: billingProvider, model: input.model, workspaceId: input.tracking.workspaceId, errorMessage: error instanceof Error ? error.message : "Échec réseau Anthropic" });
     throw new OpenAIRequestError("Anthropic est temporairement inaccessible.", 503);
   }
   const requestId = response.headers.get("request-id") ?? undefined;
   const payload = await response.json().catch(() => ({})) as AnthropicPayload;
   if (!response.ok) {
     const message = payload.error?.message ?? `Anthropic a renvoyé l’erreur ${response.status}.`;
-    if (input.tracking) await recordFailedAIRequest({ id: usageEventId, userId: input.tracking.userId, feature: input.tracking.feature, provider: "anthropic", model: input.model, workspaceId: input.tracking.workspaceId, providerRequestId: requestId, errorMessage: message });
+    if (input.tracking) await recordFailedAIRequest({ id: usageEventId, userId: input.tracking.userId, feature: input.tracking.feature, provider: billingProvider, model: input.model, workspaceId: input.tracking.workspaceId, providerRequestId: requestId, errorMessage: message });
     throw new OpenAIRequestError(message, response.status);
   }
   const responseContent = payload.content?.filter((item) => item.type === "text").map((item) => item.text ?? "").join("\n").trim();
@@ -133,7 +134,7 @@ async function createAnthropicResponse(input: Parameters<typeof createOpenAIResp
     const inputTokens = payload.usage?.input_tokens ?? 0;
     const outputTokens = payload.usage?.output_tokens ?? 0;
     usage = await retryUsagePersistence(() => recordAIUsage({
-      id: usageEventId, userId: input.tracking!.userId, feature: input.tracking!.feature, provider: "anthropic",
+      id: usageEventId, userId: input.tracking!.userId, feature: input.tracking!.feature, provider: billingProvider,
       model: payload.model ?? input.model, providerRequestId: payload.id ?? requestId, workspaceId: input.tracking!.workspaceId,
       usage: { inputTokens, cachedInputTokens: payload.usage?.cache_read_input_tokens ?? 0, outputTokens, reasoningTokens: 0, totalTokens: inputTokens + outputTokens },
       pricingUnavailable: !payload.usage, metadata: { ...input.tracking!.metadata, unsupportedContextFiles: (input.files?.length ?? 0) - supportedFiles.length },
@@ -142,13 +143,20 @@ async function createAnthropicResponse(input: Parameters<typeof createOpenAIResp
   return { content: responseContent, model: payload.model ?? input.model, requestId: payload.id ?? requestId, usage, citations: [], webSearchUsed: false };
 }
 
-function translateOpenAIError(status: number, payload: OpenAIErrorPayload) {
+function translateOpenAIError(status: number, payload: OpenAIErrorPayload, requestId?: string) {
   const rawMessage = payload.error?.message;
+  const errorCode = payload.error?.code?.toLowerCase();
+  const errorType = payload.error?.type?.toLowerCase();
+  const normalizedMessage = rawMessage?.toLowerCase() ?? "";
+  const suffix = requestId ? ` Référence OpenAI : ${requestId}.` : "";
   if (status === 401) return "La clé OpenAI est invalide ou révoquée.";
-  if (status === 429) return "Le quota OpenAI est atteint. Vérifiez la facturation et les limites du projet API.";
+  if (status === 429 && (errorCode === "insufficient_quota" || errorType === "insufficient_quota" || normalizedMessage.includes("billing") || normalizedMessage.includes("quota"))) {
+    return `Le crédit ou le quota du projet OpenAI associé à cette clé est épuisé. Vérifiez la facturation et les limites du projet API.${suffix}`;
+  }
+  if (status === 429) return `OpenAI limite temporairement le débit de ce projet. Attendez quelques secondes ou augmentez ses limites de requêtes et de tokens.${suffix}`;
   if (status === 403) return "Le projet OpenAI n’autorise pas ce modèle ou cette opération.";
   if (status === 404) return "Le modèle OpenAI configuré n’est pas disponible pour cette clé.";
-  return rawMessage || `OpenAI a renvoyé l’erreur ${status}.`;
+  return rawMessage ? `${rawMessage}${suffix}` : `OpenAI a renvoyé l’erreur ${status}.${suffix}`;
 }
 
 async function retryUsagePersistence<T>(operation: () => Promise<T>) {
@@ -170,22 +178,25 @@ export async function getOpenAIConfiguration(userId: string, requestedModel?: st
   const workspaceConfiguration = await getWorkspaceConfiguration(userId);
   const model = requestedModel ?? workspaceConfiguration?.settings.defaultModelId ?? process.env.OPENAI_MODEL?.trim() ?? "gpt-5.4-mini";
   const platformModel = await getPlatformModel(model).catch(() => undefined);
-  const provider = platformModel?.providerSlug === "anthropic" ? "anthropic" : platformModel?.providerSlug ? "openai_compatible" : "openai";
+  const provider = platformModel?.providerKind ?? "openai";
   const providerSlug = platformModel?.providerSlug ?? "openai";
   const [storedCredential, platformCredential] = await Promise.all([
     getWorkspaceProviderSecret({ workspaceId, provider: providerSlug, actorUserId: userId }),
     getPlatformProviderCredential(providerSlug).catch(() => undefined),
   ]);
-  const environmentKey = provider === "anthropic" ? process.env.ANTHROPIC_API_KEY?.trim() : process.env.OPENAI_API_KEY?.trim();
+  const environmentKey = provider === "anthropic"
+    ? process.env.ANTHROPIC_API_KEY?.trim()
+    : provider === "openai" ? process.env.OPENAI_API_KEY?.trim() : undefined;
   const apiKey = storedCredential?.secret ?? platformCredential?.secret ?? environmentKey;
   if (!apiKey) {
-    throw new OpenAIRequestError("Aucune clé OpenAI n’est configurée pour cette entreprise. Ajoutez-la dans la console Super Admin.", 409);
+    throw new OpenAIRequestError(`Aucune clé active n’est configurée pour le fournisseur ${providerSlug}. Ajoutez-la dans la console Super Admin ou dans les secrets de l’entreprise.`, 409);
   }
   return {
     apiKey,
     baseUrl: storedCredential?.baseUrl ?? platformCredential?.provider.baseUrl,
     model,
     provider: provider as ProviderKind,
+    providerSlug,
     workspaceId,
   };
 }
@@ -200,17 +211,19 @@ export async function createOpenAIResponse(input: {
   text?: Record<string, unknown>;
   webSearch?: boolean;
   provider?: ProviderKind;
+  providerSlug?: string;
   files?: OpenAIContextFile[];
   tracking?: { userId: string; workspaceId?: string; feature: FeatureKey; metadata?: Record<string, unknown> };
 }) : Promise<OpenAIResponseResult> {
   const usageEventId = randomUUID();
   const maximumOutputTokens = input.maxOutputTokens ?? 900;
+  const billingProvider = input.providerSlug ?? input.provider ?? "openai";
   if (input.tracking) {
     const estimatedFileTokens = (input.files ?? []).reduce((total, file) => total + Math.ceil(file.dataBase64.length * 0.75 / 4), 0);
     const estimatedInputTokens = Math.ceil((input.instructions.length + input.prompt.length) / 4) + estimatedFileTokens;
     await authorizeAIRequest(input.tracking.userId, input.tracking.feature, {
       id: usageEventId,
-      provider: input.provider ?? "openai",
+      provider: billingProvider,
       model: input.model,
       reservedTokens: Math.max(1, Math.min(250_000, estimatedInputTokens + maximumOutputTokens)),
     }, 1, input.tracking.workspaceId);
@@ -258,7 +271,7 @@ export async function createOpenAIResponse(input: {
         id: usageEventId,
         userId: input.tracking.userId,
         feature: input.tracking.feature,
-        provider: input.provider ?? "openai",
+        provider: billingProvider,
         model: input.model,
         workspaceId: input.tracking.workspaceId,
         errorMessage: error instanceof Error ? error.message : "Échec réseau OpenAI",
@@ -270,13 +283,13 @@ export async function createOpenAIResponse(input: {
   const requestId = response.headers.get("x-request-id") ?? undefined;
   const payload = await response.json().catch(() => ({})) as OpenAIResponsePayload & OpenAIErrorPayload;
   if (!response.ok) {
-    const message = translateOpenAIError(response.status, payload);
+    const message = translateOpenAIError(response.status, payload, requestId);
     if (input.tracking) {
       await recordFailedAIRequest({
         id: usageEventId,
         userId: input.tracking.userId,
         feature: input.tracking.feature,
-        provider: input.provider ?? "openai",
+        provider: billingProvider,
         model: input.model,
         workspaceId: input.tracking.workspaceId,
         providerRequestId: requestId,
@@ -294,7 +307,7 @@ export async function createOpenAIResponse(input: {
         id: usageEventId,
         userId: input.tracking.userId,
         feature: input.tracking.feature,
-        provider: input.provider ?? "openai",
+        provider: billingProvider,
         model: payload.model ?? input.model,
         workspaceId: input.tracking.workspaceId,
         providerRequestId: payload.id ?? requestId,
@@ -314,7 +327,7 @@ export async function createOpenAIResponse(input: {
       id: usageEventId,
       userId: tracking.userId,
       feature: tracking.feature,
-      provider: input.provider ?? "openai",
+      provider: billingProvider,
       model,
       providerRequestId: payload.id ?? requestId,
       workspaceId: tracking.workspaceId,

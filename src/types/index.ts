@@ -89,8 +89,13 @@ export interface WorkspaceSubscription {
   minuteRequestLimit: number;
   totalCostNanoUsd: number;
   maxAgents: number;
+  maxAutomations: number;
   maxModels: number;
+  storageLimitMb: number;
+  contextLimitTokens: number;
   premiumModels: boolean;
+  connectorsEnabled: boolean;
+  toolsEnabled: boolean;
   memberCount: number;
   maxMembers: number;
   usageResetAt: string;

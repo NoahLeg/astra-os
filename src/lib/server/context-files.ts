@@ -131,6 +131,24 @@ export async function createContextFile(userId: string, chatbotId: string, input
   const now = new Date().toISOString();
   const workspaceId = await getWorkspaceIdForUser(userId);
   if (!workspaceId) throw new Error("Espace de travail introuvable.");
+  const { getWorkspaceSubscriptionByWorkspaceId } = await import("@/lib/server/billing");
+  const subscription = await getWorkspaceSubscriptionByWorkspaceId(workspaceId);
+  const storageLimitBytes = subscription.storageLimitMb * 1024 * 1024;
+  if (isSupabaseDatabaseEnabled()) {
+    const rows = await serverDatabaseRequest<Array<{ size_bytes: number | string }>>(
+      `context_files?workspace_id=eq.${encodeURIComponent(workspaceId)}&select=size_bytes`,
+    );
+    const usedBytes = rows.reduce((total, row) => total + Number(row.size_bytes || 0), 0);
+    if (usedBytes + input.bytes.byteLength > storageLimitBytes) {
+      throw new Error(`La limite de stockage de votre offre (${subscription.storageLimitMb} Mo) serait dépassée.`);
+    }
+  } else {
+    ensureLocalSchema();
+    const row = getLocalDatabase().prepare("SELECT COALESCE(SUM(size_bytes), 0) AS total FROM context_files").get() as { total: number };
+    if (Number(row.total) + input.bytes.byteLength > storageLimitBytes) {
+      throw new Error(`La limite de stockage de votre offre (${subscription.storageLimitMb} Mo) serait dépassée.`);
+    }
+  }
   const target = input.scope === "workspace" ? "shared" : chatbotId;
   const storagePath = `${workspaceId}/${target}/${id}-${sanitizeName(input.name)}`;
   const row: ContextFileRow = { id, chatbot_id: input.scope === "chatbot" ? chatbotId : undefined, scope: input.scope, name: input.name, mime_type: input.mimeType, size_bytes: input.bytes.byteLength, storage_path: storagePath, status: "active", created_at: now };
@@ -183,6 +201,10 @@ function terms(value: string) {
 
 export async function loadContextFilesForModel(userId: string, chatbotId: string, query: string) {
   const files = await listContextFileRows(userId, chatbotId);
+  const { getWorkspaceSubscription } = await import("@/lib/server/billing");
+  const subscription = await getWorkspaceSubscription(userId);
+  const contextBudgetBytes = Math.max(1, Math.floor(subscription.contextLimitTokens * 4 / 0.75));
+  const maximumContextBytes = Math.min(MAX_MODEL_CONTEXT_BYTES, contextBudgetBytes);
   const queryTerms = terms(query);
   const ranked = files.filter((file) => file.status === "active").map((file) => ({
     file,
@@ -191,7 +213,7 @@ export async function loadContextFilesForModel(userId: string, chatbotId: string
   const selected: ContextFileRow[] = [];
   let totalBytes = 0;
   for (const { file } of ranked) {
-    if (selected.length >= 3 || totalBytes + Number(file.size_bytes) > MAX_MODEL_CONTEXT_BYTES) continue;
+    if (selected.length >= 3 || totalBytes + Number(file.size_bytes) > maximumContextBytes) continue;
     selected.push(file);
     totalBytes += Number(file.size_bytes);
   }

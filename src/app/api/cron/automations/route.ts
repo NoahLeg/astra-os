@@ -10,6 +10,9 @@ export const maxDuration = 120;
 type RecordRow = { workspace_id: string; payload: Automation };
 type MemberRow = { user_id: string };
 
+const MAX_CANDIDATES_PER_TICK = 1_000;
+const MAX_RUNS_PER_TICK = 25;
+
 function scheduleKey(automation: Automation, now: Date) {
   if (automation.schedule === "hourly") return `schedule:${now.toISOString().slice(0, 13)}`;
   if (automation.schedule === "weekly") {
@@ -26,8 +29,10 @@ export async function GET(request: Request) {
   if (request.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   if (!isSupabaseDatabaseEnabled()) return NextResponse.json({ processed: 0, results: [], mode: "local-disabled" });
   const now = new Date();
-  const records = await serverDatabaseRequest<RecordRow[]>("workspace_records?collection=eq.automations&select=workspace_id,payload&limit=500");
-  const due = records.filter(({ payload }) => payload.status === "active" && ["hourly", "daily", "weekly"].includes(payload.schedule ?? "") && (!payload.nextRun || Date.parse(payload.nextRun) <= now.getTime())).slice(0, 10);
+  const records = await serverDatabaseRequest<RecordRow[]>(`workspace_records?collection=eq.automations&select=workspace_id,payload&order=updated_at.asc&limit=${MAX_CANDIDATES_PER_TICK}`);
+  const due = records
+    .filter(({ payload }) => payload.status === "active" && ["hourly", "daily", "weekly"].includes(payload.schedule ?? "") && (!payload.nextRun || Date.parse(payload.nextRun) <= now.getTime()))
+    .slice(0, MAX_RUNS_PER_TICK);
   const results: Array<{ automationId: string; status: string; error?: string }> = [];
   for (const { workspace_id: workspaceId, payload } of due) {
     try {

@@ -82,6 +82,9 @@ export async function executeAutomation(input: { userId: string; automationId: s
         if (mustApprove) { approval = { ...approval, automationNodeId: node.id }; await saveWorkspaceRecord("approvals", approval, input.userId); await patchStep(workspaceId, createdRun.row.id, node.id, { status: "waiting_approval", output: { approvalId: approval.id }, completed_at: new Date().toISOString() }); await patchRun(workspaceId, createdRun.row.id, { status: "waiting_approval", approval_id: approval.id, action_node_id: node.id, attempt: attempts, output: { result: resultText, approvalId: approval.id }, input_tokens: usage?.inputTokens ?? 0, output_tokens: usage?.outputTokens ?? 0, total_tokens: usage?.totalTokens ?? 0, total_cost_nano_usd: usage?.totalCostNanoUsd ?? 0 }); currentNodeId = undefined; break; }
         const execution = await executeAgentToolCall(input.userId, approval.toolCall); executionSummary = execution.summary; await patchStep(workspaceId, createdRun.row.id, node.id, { status: "completed", output: execution, completed_at: new Date().toISOString() }); currentNodeId = undefined; continue;
       }
+      if (node.type === "action" && shouldExecute && !approval?.toolCall) {
+        throw new Error("L'agent n'a proposé aucun outil exécutable pour cette action. Précisez l'action attendue ou activez le connecteur requis.");
+      }
       const skipped = !shouldExecute && ["condition", "action", "approval"].includes(node.type) || (["action", "approval"].includes(node.type) && !approval?.toolCall);
       await patchStep(workspaceId, createdRun.row.id, node.id, { status: skipped ? "skipped" : "completed", output: node.type === "condition" ? { shouldExecute, reason: conditionReason } : node.type === "result" ? { result: resultText, executionSummary } : {}, completed_at: new Date().toISOString() }); currentNodeId = undefined;
     }
@@ -126,7 +129,7 @@ export async function completeAutomationApproval(input: {
   const totalRuns = Math.max(1, automation.runCount ?? 1);
   const priorSuccesses = (automation.successRate / 100) * Math.max(0, totalRuns - 1);
   const approved = input.decision === "approved";
-  if (approved && !input.execution) throw new Error("Le résultat de l'outil est requis pour terminer l'automatisation.");
+  if (approved && input.approval.toolCall && !input.execution) throw new Error("Le résultat de l'outil est requis pour terminer l'automatisation.");
   const executionSummary = input.execution?.summary;
   const result = [run.result, approved ? executionSummary : "Action refusée par un utilisateur."].filter(Boolean).join("\n\n");
 

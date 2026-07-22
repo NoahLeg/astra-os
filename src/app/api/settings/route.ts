@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUser } from "@/lib/server/auth";
+import { getWorkspaceSubscription } from "@/lib/server/billing";
 import { getWorkspaceConfiguration, hasWorkspaceAccess, updateWorkspaceConfiguration } from "@/lib/server/database";
+import { listPlatformModels } from "@/lib/server/platform-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +53,14 @@ export async function POST(request: Request) {
   const parsed = updateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Paramètres invalides" }, { status: 400 });
   try {
+    const [subscription, catalog] = await Promise.all([getWorkspaceSubscription(user.id), listPlatformModels()]);
+    const selectedModels = [...new Set(parsed.data.settings.enabledModelIds)];
+    if (selectedModels.length > subscription.maxModels) {
+      return NextResponse.json({ error: `Votre offre autorise ${subscription.maxModels} modèle${subscription.maxModels > 1 ? "s" : ""} actif${subscription.maxModels > 1 ? "s" : ""}.` }, { status: 409 });
+    }
+    const availableModels = new Map(catalog.filter((model) => model.enabled && model.userVisible && (!model.premium || subscription.premiumModels)).map((model) => [model.modelId, model]));
+    const unavailableModel = selectedModels.find((modelId) => !availableModels.has(modelId));
+    if (unavailableModel) return NextResponse.json({ error: `Le modèle ${unavailableModel} n'est pas disponible pour votre offre.` }, { status: 409 });
     return NextResponse.json(await updateWorkspaceConfiguration(user.id, parsed.data.workspaceName, parsed.data.settings));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Enregistrement impossible" }, { status: 403 });

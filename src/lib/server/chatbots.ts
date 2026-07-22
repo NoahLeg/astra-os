@@ -6,7 +6,7 @@ import { getLocalDatabase, getWorkspaceIdForUser, isSupabaseDatabaseEnabled, ser
 import type { Chatbot, ChatbotCitation, ChatbotConversation, ChatbotKnowledge, ChatbotMessage } from "@/types";
 
 interface ChatbotRow {
-  id: string; workspace_id?: string; name: string; slug: string; description: string; provider: "openai"; model: string;
+  id: string; workspace_id?: string; name: string; slug: string; description: string; provider: string; model: string;
   system_prompt: string; memory_enabled: boolean | number; learning_enabled: boolean | number; global_learning_enabled: boolean | number; web_enabled: boolean | number;
   is_system: boolean | number; status: "active" | "paused"; created_at: string; updated_at: string;
 }
@@ -111,12 +111,12 @@ export async function getChatbot(userId: string, chatbotId: string) {
   return row ? toChatbot(row) : undefined;
 }
 
-export async function createChatbot(userId: string, input: { name: string; description: string; model: string; systemPrompt: string; memoryEnabled: boolean; learningEnabled?: boolean; globalLearningEnabled?: boolean; webEnabled?: boolean; isSystem?: boolean; slug?: string }) {
+export async function createChatbot(userId: string, input: { name: string; description: string; model: string; provider?: string; systemPrompt: string; memoryEnabled: boolean; learningEnabled?: boolean; globalLearningEnabled?: boolean; webEnabled?: boolean; isSystem?: boolean; slug?: string }) {
   const id = randomUUID();
   const now = new Date().toISOString();
   const baseSlug = input.slug ? slugify(input.slug) : slugify(input.name);
   const slug = input.isSystem ? baseSlug : `${baseSlug}-${id.slice(0, 6)}`;
-  const row: ChatbotRow = { id, name: input.name, slug, description: input.description, provider: "openai", model: input.model, system_prompt: input.systemPrompt, memory_enabled: input.memoryEnabled, learning_enabled: input.learningEnabled ?? input.memoryEnabled, global_learning_enabled: input.globalLearningEnabled ?? false, web_enabled: input.webEnabled ?? false, is_system: Boolean(input.isSystem), status: "active", created_at: now, updated_at: now };
+  const row: ChatbotRow = { id, name: input.name, slug, description: input.description, provider: input.provider ?? "openai", model: input.model, system_prompt: input.systemPrompt, memory_enabled: input.memoryEnabled, learning_enabled: input.learningEnabled ?? input.memoryEnabled, global_learning_enabled: input.globalLearningEnabled ?? false, web_enabled: input.webEnabled ?? false, is_system: Boolean(input.isSystem), status: "active", created_at: now, updated_at: now };
   if (isSupabaseDatabaseEnabled()) {
     const workspaceId = await getWorkspaceIdForUser(userId);
     if (!workspaceId) throw new Error("Espace de travail introuvable.");

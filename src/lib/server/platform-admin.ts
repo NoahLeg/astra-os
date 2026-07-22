@@ -30,6 +30,7 @@ export interface PlatformAIModel {
   providerId: string;
   providerSlug: string;
   providerName: string;
+  providerKind: ProviderKind;
   modelId: string;
   displayName: string;
   description: string;
@@ -170,13 +171,13 @@ export async function listPlatformProviders(): Promise<PlatformAIProvider[]> {
 export async function listPlatformModels(): Promise<PlatformAIModel[]> {
   const [models, providers] = await Promise.all([
     adminRequest<Array<Record<string, unknown>>>("platform_ai_models?select=*&order=sort_order.asc,display_name.asc"),
-    adminRequest<Array<{ id: string; slug: string; name: string }>>("platform_ai_providers?select=id,slug,name"),
+    adminRequest<Array<{ id: string; slug: string; name: string; kind: ProviderKind }>>("platform_ai_providers?select=id,slug,name,kind"),
   ]);
   const providerById = new Map(providers.map((provider) => [provider.id, provider]));
   return models.map((row) => {
     const provider = providerById.get(String(row.provider_id));
     return {
-      id: String(row.id), providerId: String(row.provider_id), providerSlug: provider?.slug ?? "unknown", providerName: provider?.name ?? "Inconnu",
+      id: String(row.id), providerId: String(row.provider_id), providerSlug: provider?.slug ?? "unknown", providerName: provider?.name ?? "Inconnu", providerKind: provider?.kind ?? "openai_compatible",
       modelId: String(row.model_id), displayName: String(row.display_name), description: String(row.description ?? ""),
       enabled: Boolean(row.enabled), userVisible: Boolean(row.user_visible), isDefault: Boolean(row.is_default), premium: Boolean(row.premium),
       contextWindowTokens: row.context_window_tokens ? Number(row.context_window_tokens) : undefined,
@@ -293,7 +294,7 @@ export async function syncPlatformModels(providerId: string, actorUserId: string
   return models.length;
 }
 
-export async function savePlatformModel(input: Omit<PlatformAIModel, "providerSlug" | "providerName" | "source" | "lastSyncedAt"> & { actorUserId: string }) {
+export async function savePlatformModel(input: Omit<PlatformAIModel, "providerSlug" | "providerName" | "providerKind" | "source" | "lastSyncedAt"> & { actorUserId: string }) {
   if (input.isDefault) await adminRequest("platform_ai_models?is_default=eq.true", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ is_default: false, updated_at: new Date().toISOString() }) });
   await adminRequest("platform_ai_models?on_conflict=id", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify({ id: input.id, provider_id: input.providerId, model_id: input.modelId, display_name: input.displayName, description: input.description, enabled: input.enabled, user_visible: input.userVisible, is_default: input.isDefault, premium: input.premium, context_window_tokens: input.contextWindowTokens ?? null, max_output_tokens: input.maxOutputTokens ?? null, request_token_limit: input.requestTokenLimit ?? null, capabilities: input.capabilities, input_nano_usd_per_million: input.inputNanoUsdPerMillion, cached_input_nano_usd_per_million: input.cachedInputNanoUsdPerMillion ?? null, output_nano_usd_per_million: input.outputNanoUsdPerMillion, margin_basis_points: input.marginBasisPoints, sort_order: input.sortOrder, updated_at: new Date().toISOString() }) });
   const providers = await adminRequest<Array<{ slug: string }>>(`platform_ai_providers?id=eq.${encodeURIComponent(input.providerId)}&select=slug&limit=1`);

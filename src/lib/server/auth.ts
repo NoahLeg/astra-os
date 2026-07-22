@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createHash, randomBytes } from "node:crypto";
 import type { NextResponse } from "next/server";
 
 export interface AuthUser {
@@ -112,8 +113,35 @@ export function refreshSession(refreshToken: string) {
   return authRequest<AuthSession>("token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: refreshToken }) });
 }
 
+export function createPkcePair() {
+  const verifier = randomBytes(48).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  return { verifier, challenge };
+}
+
+export function exchangeCodeForSession(code: string, verifier: string) {
+  return authRequest<AuthSession>("token?grant_type=pkce", {
+    method: "POST",
+    body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
+  });
+}
+
 export function getUser(accessToken: string) {
   return authRequest<AuthUser>("user", { method: "GET" }, accessToken);
+}
+
+export async function signOut(accessToken: string | undefined) {
+  if (!accessToken || !supabaseUrl || !publishableKey) return;
+  const response = await fetch(`${supabaseUrl}/auth/v1/logout?scope=local`, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error("La session Supabase n'a pas pu être révoquée.");
 }
 
 function readCookie(request: Request, name: string) {

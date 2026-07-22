@@ -8,7 +8,7 @@ import type { WorkspaceData } from "@/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const collectionSchema = z.enum(["goals", "projects", "agents", "memories", "automations", "approvals", "connections", "activities", "missions"]);
+const collectionSchema = z.enum(["goals", "projects", "agents", "memories", "automations", "connections", "activities", "missions"]);
 const mutationSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("create"), collection: collectionSchema, record: z.object({ id: z.string().min(1) }).passthrough() }),
   z.object({ operation: z.literal("patch"), collection: collectionSchema, id: z.string().min(1), changes: z.record(z.string(), z.unknown()) }),
@@ -83,7 +83,6 @@ function operatorCanMutate(mutation: z.infer<typeof mutationSchema>) {
   if (mutation.operation !== "patch") return false;
   const keys = Object.keys(mutation.changes);
   if (mutation.collection === "agents") return keys.every((key) => key === "enabled" || key === "status");
-  if (mutation.collection === "approvals") return keys.length > 0 && keys.every((key) => key === "status");
   return false;
 }
 
@@ -137,9 +136,15 @@ export async function POST(request: Request) {
     const context = await getUserWorkspaceContext(user.id);
     if (!context || context.status !== "active" || context.accessLevel === "viewer") return NextResponse.json({ error: "Accès opérateur requis" }, { status: 403 });
     if (context.accessLevel !== "admin" && !operatorCanMutate(parsed.data)) return NextResponse.json({ error: "Cette modification nécessite un accès administrateur" }, { status: 403 });
-    const featureByCollection = { goals: "goals", projects: "goals", agents: "agents", memories: "memory", automations: "automations", approvals: "agents", connections: "connectors", missions: "multi_agent" } as const;
+    const featureByCollection = { goals: "goals", projects: "goals", agents: "agents", memories: "memory", automations: "automations", connections: "connectors", missions: "multi_agent" } as const;
     const requiredFeature = featureByCollection[parsed.data.collection as keyof typeof featureByCollection];
     const subscription = requiredFeature ? await requireSubscriptionFeature(user.id, requiredFeature) : await getWorkspaceSubscription(user.id);
+    if (parsed.data.operation === "create" && parsed.data.collection === "automations") {
+      const workspace = await getWorkspaceData(user.id);
+      if (workspace.automations.length >= subscription.maxAutomations) {
+        return NextResponse.json({ error: `Votre offre autorise ${subscription.maxAutomations} automatisation${subscription.maxAutomations > 1 ? "s" : ""}.` }, { status: 409 });
+      }
+    }
     if (parsed.data.collection === "agents" && parsed.data.operation === "patch" && parsed.data.changes.enabled === true) {
       const agentId = parsed.data.id;
       const workspace = await getWorkspaceData(user.id);

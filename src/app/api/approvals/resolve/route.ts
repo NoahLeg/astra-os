@@ -32,13 +32,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cette action doit être exécutée par la route d'outil sécurisée." }, { status: 409 });
     }
 
+    const run = await completeAutomationApproval({ userId: user.id, approval, decision: parsed.data.decision });
     const resolvedAt = new Date().toISOString();
     await patchWorkspaceRecord("approvals", approval.id, {
       status: parsed.data.decision,
       executedAt: resolvedAt,
       executionResult: parsed.data.decision === "rejected" ? "Action refusée" : "Décision autorisée",
     }, user.id);
-    const run = await completeAutomationApproval({ userId: user.id, approval, decision: parsed.data.decision });
     return NextResponse.json({ success: true, run });
   } catch (error) {
     if (error instanceof BillingAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

@@ -190,11 +190,11 @@ Pour activer **Continuer avec Google** :
 2. ajoutez comme URI autorisée `https://<project-ref>.supabase.co/auth/v1/callback` ;
 3. dans Supabase Authentication → Providers → Google, activez le fournisseur et collez son Client ID et son Client Secret ;
 4. dans Supabase Authentication → URL Configuration, définissez le domaine Vercel comme Site URL ;
-5. ajoutez `http://localhost:3000/auth/callback` et `https://votre-domaine.vercel.app/auth/callback` aux Redirect URLs.
+5. ajoutez `http://localhost:3000/api/auth/callback` et `https://votre-domaine.vercel.app/api/auth/callback` aux Redirect URLs.
 
 Dans Providers → Email, choisissez si la confirmation d’email est obligatoire avant la première connexion. Les comptes Google existants retrouvent leur espace sans créer une seconde organisation.
 
-Le cycle de compte inclut la confirmation d’email, le renouvellement automatique de session, la déconnexion, l’oubli de mot de passe et la définition d’un nouveau mot de passe. Configurez `NEXT_PUBLIC_SITE_URL` avec le domaine de production et autorisez précisément `/auth/callback` dans Supabase.
+Le cycle de compte inclut la confirmation d’email, le renouvellement automatique de session, la déconnexion, l’oubli de mot de passe et la définition d’un nouveau mot de passe. La connexion Google utilise PKCE et échange le code uniquement côté serveur avant de créer les cookies HTTP-only. Configurez `NEXT_PUBLIC_SITE_URL` avec le domaine de production et autorisez précisément `/api/auth/callback` dans Supabase (conservez aussi `/auth/callback` pour les liens de confirmation et de réinitialisation d’e-mail).
 
 ### Supervision
 
