@@ -42,6 +42,6 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/automations", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/automations", "schedule": "0 6 * * *" }
   ]
 }
