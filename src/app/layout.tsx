@@ -21,6 +21,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <AppProviders>
           <AppShell>{children}</AppShell>
           <GlassControlPanel />
+          <svg className="glass-filter-svg" aria-hidden="true">
+            <defs>
+              <filter id="glass-refraction">
+                <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" seed="2" />
+                <feDisplacementMap in="SourceGraphic" scale="4" xChannelSelector="R" yChannelSelector="G" />
+                <feGaussianBlur stdDeviation="0.5" />
+              </filter>
+            </defs>
+          </svg>
         </AppProviders>
       </body>
     </html>
