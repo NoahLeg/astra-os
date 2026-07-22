@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AlertTriangle, ArrowUp, CheckCircle2, LoaderCircle, X, Zap } from "lucide-react";
-import { AstraMark } from "@/components/shared/astra-mark";
+import { LiquidGlass } from "@dpawlikowski/liquid-glass/react";
+import { AlertTriangle, ArrowUp, CheckCircle2, LoaderCircle, Sparkles, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -12,11 +12,11 @@ import { assistantService } from "@/services";
 import { useAppStore } from "@/stores/app-store";
 import type { AssistantMessage, ChatbotMessage } from "@/types";
 
-const initialMessages: AssistantMessage[] = [{
+const     initialMessages: AssistantMessage[] = [{
   id: "welcome",
   role: "assistant",
   type: "text",
-  content: "Bonjour. Je suis le Coordinateur Astra. Décrivez un objectif, demandez une analyse ou préparez une tâche pour un agent.",
+  content: "Bonjour. Décrivez un objectif, demandez une analyse ou préparez une tâche pour un agent.",
   timestamp: "Maintenant",
 }];
 
@@ -85,20 +85,19 @@ export function AssistantPanel() {
         className={cn("fixed inset-y-0 right-0 z-[70] flex w-full max-w-[440px] flex-col border-l bg-card shadow-[0_0_80px_-24px_rgba(5,6,20,.7)] transition-transform duration-300", assistantOpen ? "translate-x-0" : "translate-x-full")}
         aria-label="Assistant Coordinateur"
       >
-        <div className="astra-space-panel flex h-[76px] shrink-0 items-center gap-3 rounded-none border-0 border-b px-5 shadow-none">
-          <div className="astra-star-field" />
-          <AstraMark className="relative size-9" />
-          <div className="relative flex-1">
-            <p className="font-display text-sm font-semibold text-white">Coordinateur Astra</p>
-            <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[.08em] text-[#AFB2DE]">
-              <span className="size-1.5 rounded-full bg-[#FF4FA3] shadow-[0_0_9px_rgba(255,79,163,.7)]" />
+        <LiquidGlass intensity="vivid" className="flex h-[76px] shrink-0 items-center gap-3 border-b border-border/60 px-5" style={{ "--lg-tint": "110 66 217", "--lg-opacity": "0.25", "--lg-blur": "14px", "--lg-saturate": "160%", "--lg-radius": "0", "--lg-border-opacity": "0.15" } as unknown as React.CSSProperties}>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary"><Sparkles className="size-5" /></span>
+          <div className="flex-1">
+            <p className="font-display text-sm font-semibold text-foreground">Assistant</p>
+            <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[.08em] text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
               Disponible · {model}
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setAssistantOpen(false)} aria-label="Fermer" className="relative text-white hover:bg-white/10 hover:text-white">
+          <Button variant="ghost" size="icon" onClick={() => setAssistantOpen(false)} aria-label="Fermer">
             <X className="size-4" />
           </Button>
-        </div>
+        </LiquidGlass>
 
         <div className="app-canvas scrollbar-none flex-1 space-y-4 overflow-y-auto p-5">
           {messages.map((message) => (
@@ -172,7 +171,7 @@ export function AssistantPanel() {
           ))}
           {pending ? (
             <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[.08em] text-muted-foreground">
-              <LoaderCircle className="size-3 animate-spin" />Le Coordinateur interroge OpenAI…
+              <LoaderCircle className="size-3 animate-spin" />L'assistant réfléchit…
             </div>
           ) : null}
         </div>

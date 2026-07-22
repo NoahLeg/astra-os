@@ -14,6 +14,7 @@
     "lint": "node ./scripts/run-with-system-ca.mjs ./node_modules/eslint/bin/eslint.js"
   },
   "dependencies": {
+    "@dpawlikowski/liquid-glass": "^0.3.0",
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.90.21",
     "class-variance-authority": "^0.7.1",

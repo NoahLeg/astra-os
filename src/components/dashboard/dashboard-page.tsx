@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
-import { ArrowRight, Bot, CalendarClock, CheckCircle2, ChevronRight, Clock3, FolderKanban, Gauge, Goal, Lightbulb, LoaderCircle, Play, ShieldCheck, TimerReset, Workflow, Zap } from "lucide-react";
+import { LiquidGlass } from "@dpawlikowski/liquid-glass/react";
+import { ArrowRight, Bot, CalendarClock, CheckCircle2, ChevronRight, Clock3, FolderKanban, Gauge, Goal, Lightbulb, LoaderCircle, Play, ShieldCheck, Sparkles, TimerReset, Workflow, Zap } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { toast } from "sonner";
-import { ConstellationMap } from "@/components/shared/astra-mark";
 import { AgentStatus, ConfidenceIndicator, RiskBadge } from "@/components/shared/indicators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export function DashboardPage() {
     setAnalysis(null);
     try {
       setAnalysis(await goalService.analyze(intent.trim()));
-      toast.success("Objectif analysé par le Coordinateur");
+      toast.success("Objectif analysé");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Analyse impossible");
     } finally {
@@ -59,30 +59,27 @@ export function DashboardPage() {
   ];
 
   return <div className="space-y-6 md:space-y-8">
-    <section className="astra-space-panel rounded-[18px] border p-5 sm:p-7 lg:p-9">
-      <div className="astra-star-field" />
+    <LiquidGlass intensity="subtle" as="section" className="rounded-[18px] border border-border/60 p-5 sm:p-7 lg:p-9" style={{ "--lg-tint": "58 76 224", "--lg-opacity": "0.15", "--lg-blur": "10px", "--lg-saturate": "150%", "--lg-border-opacity": "0.1" } as unknown as React.CSSProperties}>
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-center">
         <div className="min-w-0">
-          <span className="astra-live-badge">{availableAgents} agent{availableAgents > 1 ? "s" : ""} prêt{availableAgents > 1 ? "s" : ""} à agir</span>
-          <p className="astra-eyebrow mt-5 text-[#9DA6FF]">Astra OS — orchestration d’agents</p>
-          <h1 className="mt-4 max-w-[18ch] font-display text-3xl font-semibold leading-[1.08] tracking-tight text-white sm:text-4xl lg:text-[2.8rem]">Bonjour {displayName}, transformons une <span className="astra-accent-word">idée en résultat.</span></h1>
-          <p className="mt-5 max-w-2xl text-sm leading-6 text-[#AFB2DE] sm:text-base">Décrivez votre objectif. Astra consulte le contexte autorisé, construit le plan et coordonne les bons agents sous votre contrôle.</p>
+          <div className="flex items-center gap-2"><span className="flex size-5 items-center justify-center rounded-full bg-primary/20"><Sparkles className="size-3 text-primary" /></span><span className="font-mono text-[10px] font-medium uppercase tracking-[.12em] text-muted-foreground">Tableau de bord</span></div>
+          <h1 className="mt-4 max-w-[18ch] font-display text-3xl font-semibold leading-[1.08] tracking-tight text-foreground sm:text-4xl lg:text-[2.8rem]">Bonjour {displayName}, <span className="text-primary">transformons une idée en résultat.</span></h1>
+          <p className="mt-5 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">Décrivez votre objectif. Le système consulte le contexte autorisé, construit le plan et coordonne les bons agents sous votre contrôle.</p>
 
           <div className="mt-6 grid max-w-xl grid-cols-2 gap-3 sm:flex">
-            <div className="rounded-lg border border-white/10 bg-white/[.055] px-4 py-3"><p className="font-mono text-[9px] uppercase tracking-[.14em] text-[#8589B8]">Agents disponibles</p><p className="mt-1 font-mono text-lg font-medium text-white">{availableAgents}</p></div>
-            <div className="rounded-lg border border-white/10 bg-white/[.055] px-4 py-3"><p className="font-mono text-[9px] uppercase tracking-[.14em] text-[#8589B8]">Décisions en attente</p><p className="mt-1 font-mono text-lg font-medium text-[#FFAFD8]">{pendingApprovals.length}</p></div>
+            <div className="rounded-lg border border-border/60 bg-background/50 px-4 py-3"><p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Agents disponibles</p><p className="mt-1 font-mono text-lg font-medium text-foreground">{availableAgents}</p></div>
+            <div className="rounded-lg border border-border/60 bg-background/50 px-4 py-3"><p className="font-mono text-[9px] uppercase tracking-[.14em] text-muted-foreground">Décisions en attente</p><p className="mt-1 font-mono text-lg font-medium text-primary">{pendingApprovals.length}</p></div>
           </div>
 
-          <div className="mt-7 rounded-xl border border-white/12 bg-[#090A1B]/65 p-3 shadow-2xl backdrop-blur-sm">
-            <Textarea value={intent} onChange={(event) => { setIntent(event.target.value); setAnalysis(null); }} placeholder="Ex. Prépare le lancement de mon service d’automatisation pour les PME avant septembre." className="min-h-24 border-0 bg-transparent px-2 text-base text-white shadow-none placeholder:text-[#777BA8] focus:ring-0 md:text-[17px]" />
-            <div className="flex flex-col gap-3 border-t border-white/10 px-2 pt-3 sm:flex-row sm:items-center"><div className="flex flex-1 flex-wrap gap-2"><Badge className="border-white/10 bg-white/[.055] text-[#AFB2DE]"><FolderKanban className="size-3" />Contexte projet</Badge><Badge className="border-white/10 bg-white/[.055] text-[#AFB2DE]"><ShieldCheck className="size-3" />Validation humaine</Badge><Badge className="border-white/10 bg-white/[.055] text-[#AFB2DE]"><Bot className="size-3" />Multi-agents</Badge></div><Button className="bg-[#3A4CE0] text-white hover:bg-[#4658EA]" onClick={() => void analyze()} disabled={analyzing}>{analyzing ? <LoaderCircle className="size-4 animate-spin" /> : <Play className="size-4 fill-current" />}Comprendre l’objectif</Button></div>
+          <div className="mt-7 rounded-xl border border-border/60 bg-background/60 p-3 shadow-sm">
+            <Textarea value={intent} onChange={(event) => { setIntent(event.target.value); setAnalysis(null); }} placeholder="Ex. Prépare le lancement de mon service d'automatisation pour les PME avant septembre." className="min-h-24 border-0 bg-transparent px-2 text-base text-foreground shadow-none placeholder:text-muted-foreground focus:ring-0 md:text-[17px]" />
+            <div className="flex flex-col gap-3 border-t border-border/50 px-2 pt-3 sm:flex-row sm:items-center"><div className="flex flex-1 flex-wrap gap-2"><Badge className="border-border/60 bg-background/50"><FolderKanban className="size-3" />Contexte projet</Badge><Badge className="border-border/60 bg-background/50"><ShieldCheck className="size-3" />Validation humaine</Badge><Badge className="border-border/60 bg-background/50"><Bot className="size-3" />Multi-agents</Badge></div><Button onClick={() => void analyze()} disabled={analyzing}>{analyzing ? <LoaderCircle className="size-4 animate-spin" /> : <Play className="size-4 fill-current" />}Comprendre l'objectif</Button></div>
           </div>
         </div>
-        <ConstellationMap className="mx-auto hidden w-full max-w-[330px] xl:block" />
       </div>
 
-      {analysis ? <div className="mt-5 grid gap-4 rounded-xl border border-[#8C9AFF]/30 bg-[#8C9AFF]/10 p-4 backdrop-blur-sm md:grid-cols-[1fr_auto]"><div><div className="flex items-center gap-2 text-sm font-medium text-[#C4CAFF]"><CheckCircle2 className="size-4" />Intention comprise avec {analysis.confidence} % de confiance</div><p className="mt-2 text-sm text-[#AFB2DE]">{analysis.summary}</p><div className="mt-3 flex flex-wrap gap-2">{analysis.dueDate ? <Badge className="border-white/10 bg-white/[.06] text-[#D9DCFF]">Échéance · {new Date(analysis.dueDate).toLocaleDateString("fr-FR")}</Badge> : null}<Badge className="border-white/10 bg-white/[.06] text-[#D9DCFF]">{analysis.agentIds.length} agent(s)</Badge><Badge className="border-white/10 bg-white/[.06] text-[#D9DCFF]">{analysis.steps.length} étapes</Badge><Badge className="border-white/10 bg-white/[.06] text-[#D9DCFF]">{analysis.model}</Badge></div></div><Link href={`/goals/new?intent=${encodeURIComponent(intent)}`} className="self-center"><Button variant="outline" className="border-white/20 bg-white/[.06] text-white hover:bg-white/10">Construire le plan<ArrowRight className="size-4" /></Button></Link></div> : null}
-    </section>
+      {analysis ? <div className="mt-5 grid gap-4 rounded-xl border border-primary/20 bg-primary/5 p-4 md:grid-cols-[1fr_auto]"><div><div className="flex items-center gap-2 text-sm font-medium text-primary"><CheckCircle2 className="size-4" />Intention comprise avec {analysis.confidence} % de confiance</div><p className="mt-2 text-sm text-muted-foreground">{analysis.summary}</p><div className="mt-3 flex flex-wrap gap-2">{analysis.dueDate ? <Badge className="border-border/60 bg-background/50">Échéance · {new Date(analysis.dueDate).toLocaleDateString("fr-FR")}</Badge> : null}<Badge className="border-border/60 bg-background/50">{analysis.agentIds.length} agent(s)</Badge><Badge className="border-border/60 bg-background/50">{analysis.steps.length} étapes</Badge><Badge className="border-border/60 bg-background/50">{analysis.model}</Badge></div></div><Link href={`/goals/new?intent=${encodeURIComponent(intent)}`} className="self-center"><Button variant="outline">Construire le plan<ArrowRight className="size-4" /></Button></Link></div> : null}
+    </LiquidGlass>
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <Card key={stat.label} className="astra-metric-card" style={{ "--metric-accent": stat.accent } as CSSProperties}><CardContent className="p-4 pt-5"><div className="flex items-start justify-between"><span className={`${stat.bg} ${stat.color} rounded-lg p-2.5`}><stat.icon className="size-4" /></span><span className="font-mono text-[9px] uppercase tracking-[.08em] text-muted-foreground">{stat.delta}</span></div><p className="mt-4 font-mono text-2xl font-medium">{stat.value}</p><p className="mt-1 text-xs text-muted-foreground">{stat.label}</p></CardContent></Card>)}</section>
 

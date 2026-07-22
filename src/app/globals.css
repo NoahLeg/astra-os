@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@dpawlikowski/liquid-glass/css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -97,7 +98,8 @@ html { scroll-behavior: smooth; }
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 82% -10%, color-mix(in srgb, var(--violet) 7%, transparent), transparent 32rem),
+    radial-gradient(ellipse at 20% 40%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 60%),
+    radial-gradient(ellipse at 80% 60%, color-mix(in srgb, var(--violet) 8%, transparent), transparent 55%),
     var(--background);
   color: var(--foreground);
   font-family: var(--font-body);
@@ -121,13 +123,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
-.astra-sidebar {
-  color: var(--hero-ink);
-  background:
-    radial-gradient(circle at 10% 4%, rgba(58, 76, 224, 0.34), transparent 15rem),
-    radial-gradient(circle at 92% 80%, rgba(110, 66, 217, 0.2), transparent 18rem),
-    linear-gradient(165deg, var(--void-top), var(--void-mid) 48%, var(--void-deep));
-}
 .astra-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -140,51 +135,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   text-transform: uppercase;
 }
 .astra-eyebrow::before { width: 0.38rem; height: 0.38rem; flex: none; border-radius: 999px; background: currentColor; content: ""; }
-.astra-live-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  border: 1px solid rgba(255, 79, 163, 0.34);
-  border-radius: 999px;
-  background: rgba(255, 79, 163, 0.12);
-  color: #ffb5d8;
-  padding: 0.38rem 0.72rem;
-  font-family: var(--font-code);
-  font-size: 0.7rem;
-  transform: rotate(-1deg);
-}
-.astra-live-badge::before { width: 0.38rem; height: 0.38rem; border-radius: 999px; background: var(--flare); box-shadow: 0 0 14px rgba(255, 79, 163, 0.7); content: ""; animation: astra-blink 1.8s ease-in-out infinite; }
-.astra-space-panel {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border-color: rgba(140, 154, 255, 0.22);
-  background:
-    radial-gradient(ellipse 700px 390px at 10% -10%, rgba(58, 76, 224, 0.38), transparent 64%),
-    radial-gradient(ellipse 520px 360px at 100% 14%, rgba(255, 79, 163, 0.12), transparent 58%),
-    radial-gradient(ellipse 900px 620px at 50% 0%, var(--void-top), var(--void-mid) 54%, var(--void-deep));
-  color: var(--hero-ink);
-  box-shadow: 0 28px 90px -50px rgba(17, 10, 60, 0.9);
-}
-.astra-space-panel::before,
-.astra-space-panel::after { position: absolute; z-index: -1; border-radius: 999px; filter: blur(64px); content: ""; pointer-events: none; }
-.astra-space-panel::before { width: 18rem; height: 18rem; left: -8rem; top: -10rem; background: rgba(58, 76, 224, 0.35); }
-.astra-space-panel::after { width: 16rem; height: 16rem; right: -7rem; bottom: -9rem; background: rgba(110, 66, 217, 0.3); }
-.astra-star-field {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  opacity: 0.7;
-  background-image:
-    radial-gradient(circle at 7% 18%, #fff 0 1px, transparent 1.4px),
-    radial-gradient(circle at 19% 74%, #fff 0 1px, transparent 1.4px),
-    radial-gradient(circle at 33% 28%, rgba(255,255,255,.75) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 48% 84%, #fff 0 1.2px, transparent 1.6px),
-    radial-gradient(circle at 61% 13%, rgba(255,255,255,.78) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 76% 62%, #fff 0 1px, transparent 1.4px),
-    radial-gradient(circle at 91% 24%, rgba(255,255,255,.82) 0 1.2px, transparent 1.6px),
-    radial-gradient(circle at 84% 88%, #fff 0 1px, transparent 1.4px);
-}
 .astra-accent-word {
   color: #ffb3dc;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M2 6 Q15 2 25 6 T48 6 T71 6 T98 5' fill='none' stroke='%23FF4FA3' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -193,22 +143,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background-size: 70px 10px;
   padding-bottom: 0.28rem;
 }
-.astra-constellation-shell { position: relative; }
-.astra-constellation-shell::before { position: absolute; inset: 0.8rem -0.8rem -0.8rem 0.8rem; border: 1px solid rgba(255,255,255,.09); border-radius: 1.1rem; background: rgba(58,76,224,.1); content: ""; transform: rotate(-3deg); }
-.astra-constellation { position: relative; border: 1px solid rgba(255,255,255,.13); border-radius: 1.1rem; background: rgba(9,10,27,.67); padding: 1rem; transform: rotate(1deg); transition: transform .35s cubic-bezier(.34,1.56,.64,1); }
-.astra-constellation:hover { transform: rotate(0deg); }
-.astra-node-line { stroke: rgba(255,255,255,.22); stroke-width: 1.4; }
-.astra-node { fill: #8c9aff; }
-.astra-node-violet { fill: #b48cff; }
-.astra-node-tag { fill: #8589bc; font-family: var(--font-code); font-size: 10.5px; letter-spacing: .04em; }
-.astra-node-pulse { animation: astra-pulse 2.6s ease-in-out infinite; }
-.astra-travel-dot { fill: var(--flare); offset-path: path("M180,40 L260,220 L340,340 L200,320 L120,200 L180,40"); offset-rotate: 0deg; animation: astra-travel 6s linear infinite; filter: drop-shadow(0 0 6px rgba(255,79,163,.8)); }
 .astra-metric-card { position: relative; overflow: hidden; }
 .astra-metric-card::before { position: absolute; inset: 0 0 auto; height: 3px; background: var(--metric-accent, var(--indigo)); content: ""; }
 
-@keyframes astra-pulse { 0%, 100% { opacity: 1; transform: scale(1); transform-origin: center; } 50% { opacity: .45; transform: scale(1.5); transform-origin: center; } }
-@keyframes astra-travel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
-@keyframes astra-blink { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 @keyframes pulse-soft { 0%,100% { opacity:.55; transform:scale(.96) } 50% { opacity:1; transform:scale(1.04) } }
 .animate-pulse-soft { animation: pulse-soft 2.4s ease-in-out infinite; }
 
@@ -216,6 +153,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .rounded-2xl, .rounded-3xl { border-radius: 0.625rem; }
 
 @media (prefers-reduced-motion: reduce) {
-  .astra-node-pulse, .astra-travel-dot, .astra-live-badge::before, .animate-pulse-soft { animation: none; }
-  .astra-constellation { transition: none; }
+  .animate-pulse-soft { animation: none; }
 }

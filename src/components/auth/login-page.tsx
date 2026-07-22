@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ArrowRight, Building2, CheckCircle2, Chrome, LoaderCircle, LockKeyhole } from "lucide-react";
-import { AstraMark, ConstellationMap } from "@/components/shared/astra-mark";
+import { AstraMark } from "@/components/shared/astra-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -88,7 +88,7 @@ export function LoginPage() {
             <p className="mt-5 max-w-lg leading-7 text-[#AFB2DE]">Coordonnez objectifs, outils, validations et automatisations dans un espace unique, traçable et isolé pour chaque organisation.</p>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">{["Données isolées par entreprise", "Validation humaine intégrée", "Agents limités par permissions", "Historique et décisions traçables"].map((item) => <div key={item} className="flex items-center gap-2 text-sm text-[#D5D7F3]"><CheckCircle2 className="size-4 text-[#8C9AFF]" />{item}</div>)}</div>
           </div>
-          <ConstellationMap className="hidden 2xl:block" />
+          <div className="hidden 2xl:flex items-center justify-center h-full"><AstraMark className="size-24 text-muted-foreground/30" /></div>
         </div>
         <p className="relative font-mono text-[10px] text-[#777BA8]">Authentification Supabase · Sessions HTTP-only · Secrets chiffrés</p>
       </section>

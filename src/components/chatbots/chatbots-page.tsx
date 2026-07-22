@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { LiquidGlass } from "@dpawlikowski/liquid-glass/react";
 import {
   Bot,
   BrainCircuit,
@@ -365,9 +366,9 @@ export function ChatbotsPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Assistants specialises"
-        title="Chatbots personnalises"
-        description="Retrouve une interface plus proche des produits IA modernes, avec navigation claire, sous-menu de travail et conversation mieux structuree."
+        eyebrow="Chatbots"
+        title="Mes chatbots"
+        description="Gérez vos assistants conversationnels, leur contexte et leurs conversations."
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
@@ -377,42 +378,37 @@ export function ChatbotsPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)_minmax(280px,0.8fr)]">
-        <div className="relative overflow-hidden rounded-[28px] border border-border/70 bg-[linear-gradient(135deg,rgba(59,130,246,0.16),rgba(14,165,233,0.06)_42%,rgba(255,255,255,0.02))] p-5 sm:p-6">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_30%)]" />
-          <div className="relative">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-background/70 text-primary shadow-sm">
-                <WandSparkles className="size-5" />
-              </span>
-              <div>
-                <p className="text-sm font-medium">Studio conversationnel</p>
-                <p className="mt-1 text-xs text-muted-foreground">Un espace unique pour discuter, enrichir le contexte et piloter chaque assistant.</p>
-              </div>
-            </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Badge className="border-white/10 bg-background/60 text-foreground">Chat persistant</Badge>
-              <Badge className="border-white/10 bg-background/60 text-foreground">Memoire controlee</Badge>
-              <Badge className="border-white/10 bg-background/60 text-foreground">Sources web</Badge>
+        <LiquidGlass intensity="subtle" className="rounded-[28px] border border-border/60 p-5 sm:p-6" style={{ "--lg-tint": "58 76 224", "--lg-opacity": "0.15", "--lg-blur": "8px", "--lg-radius": "28px", "--lg-border-opacity": "0.1" } as unknown as React.CSSProperties}>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-background/70 text-primary shadow-sm">
+              <WandSparkles className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-medium">Chatbot</p>
+              <p className="mt-1 text-xs text-muted-foreground">Discutez, enrichissez le contexte et pilotez chaque assistant.</p>
             </div>
           </div>
-        </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Badge className="border-border/60 bg-background/50">Chat persistant</Badge>
+            <Badge className="border-border/60 bg-background/50">Memoire controlee</Badge>
+            <Badge className="border-border/60 bg-background/50">Sources web</Badge>
+          </div>
+        </LiquidGlass>
 
-        <MetricCard
-          title="Assistants actifs"
-          value={String(chatbots.filter((item) => item.status === "active").length)}
-          description="Chatbots disponibles dans cet espace"
-          tone="blue"
-        />
-        <MetricCard
-          title="Conversations"
-          value={String(conversations.length)}
-          description="Sessions sauvegardees pour le chatbot courant"
-          tone="violet"
-        />
+        <LiquidGlass intensity="subtle" as="div" className="rounded-[24px] border border-border/60 p-5" style={{ "--lg-tint": "58 76 224", "--lg-opacity": "0.12", "--lg-blur": "8px", "--lg-radius": "24px", "--lg-border-opacity": "0.08" } as unknown as React.CSSProperties}>
+          <div className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[10px] font-medium text-primary">Assistants actifs</div>
+          <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{chatbots.filter((item) => item.status === "active").length}</p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">Chatbots disponibles dans cet espace</p>
+        </LiquidGlass>
+        <LiquidGlass intensity="subtle" as="div" className="rounded-[24px] border border-border/60 p-5" style={{ "--lg-tint": "110 66 217", "--lg-opacity": "0.12", "--lg-blur": "8px", "--lg-radius": "24px", "--lg-border-opacity": "0.08" } as unknown as React.CSSProperties}>
+          <div className="inline-flex rounded-full border border-violet-500/20 bg-violet-500/5 px-2.5 py-1 text-[10px] font-medium text-violet-500">Conversations</div>
+          <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{conversations.length}</p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">Sessions sauvegardees pour le chatbot courant</p>
+        </LiquidGlass>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <Card className="border-border/70 bg-card/70 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.55)] backdrop-blur">
+        <LiquidGlass intensity="subtle" as="div" className="rounded-[10px] border border-border/60" style={{ "--lg-tint": "15 18 35", "--lg-opacity": "0.25", "--lg-blur": "8px", "--lg-radius": "10px", "--lg-border-opacity": "0.1" } as unknown as React.CSSProperties}>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">Bibliotheque d'assistants</CardTitle>
           </CardHeader>
@@ -474,10 +470,10 @@ export function ChatbotsPage() {
               )}
             </div>
           </CardContent>
-        </Card>
+        </LiquidGlass>
 
         <div className="space-y-4">
-          <Card className="overflow-hidden border-border/70 bg-card/75 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.6)] backdrop-blur">
+          <LiquidGlass intensity="subtle" as="div" className="overflow-hidden rounded-[10px] border border-border/60" style={{ "--lg-tint": "15 18 35", "--lg-opacity": "0.25", "--lg-blur": "10px", "--lg-radius": "10px", "--lg-border-opacity": "0.1" } as unknown as React.CSSProperties}>
             <CardContent className="p-0">
               {selected ? (
                 <>
@@ -625,7 +621,7 @@ export function ChatbotsPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </LiquidGlass>
         </div>
       </div>
 
@@ -725,8 +721,7 @@ function ChatPanel({
         </div>
       </div>
 
-      <div className="bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_42%)]">
-        <div className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-border/70 bg-background/80 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.45)]">
+      <LiquidGlass intensity="subtle" as="div" className="flex h-[520px] flex-col overflow-hidden rounded-[28px] border border-border/60" style={{ "--lg-tint": "15 18 35", "--lg-opacity": "0.2", "--lg-blur": "8px", "--lg-saturate": "140%", "--lg-radius": "28px", "--lg-border-opacity": "0.1" } as unknown as React.CSSProperties}>
           <div className="border-b border-border/60 px-4 py-3 text-[11px] text-muted-foreground sm:px-5">
             {selected.systemPrompt
               ? "Le systeme conserve le ton, le contexte et les outils autorises pour cette session."
@@ -882,8 +877,7 @@ function ChatPanel({
               </div>
             </div>
           </div>
-        </div>
-      </div>
+      </LiquidGlass>
     </div>
   );
 }
@@ -1106,31 +1100,6 @@ function SettingsPanel({
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function MetricCard({
-  title,
-  value,
-  description,
-  tone,
-}: {
-  title: string;
-  value: string;
-  description: string;
-  tone: "blue" | "violet";
-}) {
-  const toneClass =
-    tone === "blue"
-      ? "border-cyan-500/20 bg-cyan-500/5 text-cyan-600"
-      : "border-violet-500/20 bg-violet-500/5 text-violet-600";
-
-  return (
-    <div className="rounded-[24px] border border-border/70 bg-card/70 p-5 shadow-[0_20px_50px_-42px_rgba(15,23,42,0.55)] backdrop-blur">
-      <div className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-medium ${toneClass}`}>{title}</div>
-      <p className="mt-4 text-3xl font-semibold tracking-tight">{value}</p>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">{description}</p>
     </div>
   );
 }
