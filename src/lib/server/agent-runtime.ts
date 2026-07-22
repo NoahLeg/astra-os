@@ -6,7 +6,20 @@ import { agentToolCatalog, getAvailableAgentTools, getGmailMailboxSnapshot, pars
 import { createOpenAIResponse } from "@/lib/server/openai";
 import type { Agent, AgentToolCall, AgentToolName, AIUsageEvent, ApprovalRequest, FeatureKey, WorkspaceData } from "@/types";
 
-const toolNames = ["none", "send_email", "create_email_draft", "organize_email", "smart_organize_gmail", "create_calendar_event", "create_drive_file"] as const;
+const toolNames = [
+  "none",
+  "send_email",
+  "create_email_draft",
+  "organize_email",
+  "smart_organize_gmail",
+  "create_calendar_event",
+  "create_drive_file",
+  "create_google_doc",
+  "create_google_sheet",
+  "create_google_slides",
+  "find_google_contacts",
+  "create_google_task",
+] as const;
 
 const modelResultSchema = z.object({
   result: z.string().min(1),

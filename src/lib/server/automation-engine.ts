@@ -14,7 +14,7 @@ const automationSchema = z.object({
   trigger: z.string().min(1).max(500), conditions: z.array(z.string().max(500)).max(20), actions: z.array(z.string().max(1_000)).max(20),
   tools: z.array(z.string().max(100)).max(30).default([]), successRate: z.number().min(0).max(100).default(0),
   autonomyLevel: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]), nodes: z.array(z.object({ id: z.string().min(1).max(100), type: z.enum(["trigger", "condition", "agent", "action", "approval", "result"]), label: z.string().min(1).max(500), config: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional() })).min(2).max(30),
-  agentId: z.string().max(80).optional(), instruction: z.string().max(12_000).optional(), preferredTool: z.enum(["auto", "send_email", "create_email_draft", "organize_email", "smart_organize_gmail", "create_calendar_event", "create_drive_file"]).optional(),
+  agentId: z.string().max(80).optional(), instruction: z.string().max(12_000).optional(), preferredTool: z.enum(["auto", "send_email", "create_email_draft", "organize_email", "smart_organize_gmail", "create_calendar_event", "create_drive_file", "create_google_doc", "create_google_sheet", "create_google_slides", "find_google_contacts", "create_google_task"]).optional(),
   retryPolicy: z.object({ maximumAttempts: z.number().int().min(1).max(5), backoffSeconds: z.number().int().min(0).max(30) }).optional(),
 }).passthrough().superRefine((automation, context) => {
   const nodeIds = new Set(automation.nodes.map((node) => node.id));

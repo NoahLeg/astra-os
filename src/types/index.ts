@@ -6,7 +6,18 @@ export type AccessLevel = "viewer" | "operator" | "admin";
 export type AccountStatus = "active" | "suspended";
 export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "incomplete" | "unpaid";
 export type FeatureKey = "assistant" | "chatbots" | "goals" | "memory" | "agents" | "connectors" | "automations" | "multi_agent" | "team_admin" | "collaboration";
-export type AgentToolName = "send_email" | "create_email_draft" | "organize_email" | "smart_organize_gmail" | "create_calendar_event" | "create_drive_file";
+export type AgentToolName =
+  | "send_email"
+  | "create_email_draft"
+  | "organize_email"
+  | "smart_organize_gmail"
+  | "create_calendar_event"
+  | "create_drive_file"
+  | "create_google_doc"
+  | "create_google_sheet"
+  | "create_google_slides"
+  | "find_google_contacts"
+  | "create_google_task";
 export type AccentColor = "indigo" | "cyan" | "violet" | "emerald" | "rose";
 export type InterfaceDensity = "comfortable" | "compact";
 
@@ -320,7 +331,43 @@ export interface CreateDriveFileToolCall {
   arguments: { name: string; content: string; mimeType: "text/plain" | "text/markdown" };
 }
 
-export type AgentToolCall = SendEmailToolCall | CreateEmailDraftToolCall | OrganizeEmailToolCall | SmartOrganizeGmailToolCall | CreateCalendarEventToolCall | CreateDriveFileToolCall;
+export interface CreateGoogleDocToolCall {
+  tool: "create_google_doc";
+  arguments: { title: string; content: string };
+}
+
+export interface CreateGoogleSheetToolCall {
+  tool: "create_google_sheet";
+  arguments: { title: string; headers: string[]; rows: string[][] };
+}
+
+export interface CreateGoogleSlidesToolCall {
+  tool: "create_google_slides";
+  arguments: { title: string; slides: Array<{ title: string; body?: string }> };
+}
+
+export interface FindGoogleContactsToolCall {
+  tool: "find_google_contacts";
+  arguments: { query: string; maximumResults?: number };
+}
+
+export interface CreateGoogleTaskToolCall {
+  tool: "create_google_task";
+  arguments: { title: string; notes?: string; dueAt?: string };
+}
+
+export type AgentToolCall =
+  | SendEmailToolCall
+  | CreateEmailDraftToolCall
+  | OrganizeEmailToolCall
+  | SmartOrganizeGmailToolCall
+  | CreateCalendarEventToolCall
+  | CreateDriveFileToolCall
+  | CreateGoogleDocToolCall
+  | CreateGoogleSheetToolCall
+  | CreateGoogleSlidesToolCall
+  | FindGoogleContactsToolCall
+  | CreateGoogleTaskToolCall;
 
 export interface AppNotification {
   id: string;
