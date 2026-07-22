@@ -36,16 +36,6 @@ export const GLASS_PRESETS: Record<string, Partial<GlassConfig>> = {
     brightness: -0.2,
     edgeHighlight: 0.05,
   },
-  "ios-26": {
-    blurAmount: 0.2,
-    refraction: 0.5,
-    edgeHighlight: 0.08,
-    chromAberration: 0.05,
-    specular: 0.08,
-    cornerRadius: 28,
-    zRadius: 24,
-    shadowOpacity: 0.25,
-  },
 }
 
 interface GlassPanelProps {

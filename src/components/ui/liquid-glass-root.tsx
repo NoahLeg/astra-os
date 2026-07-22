@@ -7,10 +7,9 @@ import { cn } from "@/lib/utils"
 interface LiquidGlassRootProps {
   children: ReactNode
   className?: string
-  style?: React.CSSProperties
 }
 
-export function LiquidGlassRoot({ children, className, style }: LiquidGlassRootProps) {
+export function LiquidGlassRoot({ children, className }: LiquidGlassRootProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const instanceRef = useRef<LiquidGlass | null>(null)
 
@@ -19,12 +18,22 @@ export function LiquidGlassRoot({ children, className, style }: LiquidGlassRootP
     if (!root) return
 
     let mounted = true
-    const glassElements = root.querySelectorAll<HTMLElement>(".liquid-glass")
 
-    LiquidGlass.init({ root, glassElements }).then((instance) => {
-      if (!mounted) { instance.destroy(); return }
+    const init = async () => {
+      const instance = await LiquidGlass.init({
+        root,
+        glassElements: root.querySelectorAll<HTMLElement>(".liquid-glass"),
+      })
+
+      if (!mounted) {
+        instance.destroy()
+        return
+      }
+
       instanceRef.current = instance
-    }).catch(() => {})
+    }
+
+    init()
 
     return () => {
       mounted = false
@@ -34,7 +43,7 @@ export function LiquidGlassRoot({ children, className, style }: LiquidGlassRootP
   }, [])
 
   return (
-    <div ref={rootRef} className={cn("relative", className)} style={style}>
+    <div ref={rootRef} className={cn("relative", className)}>
       {children}
     </div>
   )

@@ -29,8 +29,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { GlassButton } from "@/components/ui/glass-button";
-import { GlassCard } from "@/components/ui/glass-card";
-import { GlassDecorative } from "@/components/ui/glass-decorative";
 import { openAIModels as fallbackOpenAIModels } from "@/config";
 import { chatbotService } from "@/services";
 import type {
@@ -366,9 +364,7 @@ export function ChatbotsPage() {
   }
 
   return (
-    <div className="relative space-y-7">
-      <GlassDecorative shape="pill" preset="frosted" size="sm" style={{ position: 'absolute', top: '3%', right: '1%', zIndex: 0, opacity: 0.5 }} />
-      <GlassDecorative shape="circle" preset="vivid" size="sm" style={{ position: 'absolute', bottom: '15%', left: '-1%', zIndex: 0, opacity: 0.4 }} />
+    <div className="space-y-7">
       <PageHeader
         eyebrow="Chatbots"
         title="Mes chatbots"
@@ -382,39 +378,33 @@ export function ChatbotsPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.8fr)_minmax(280px,0.8fr)]">
-        <GlassCard className="p-0 sm:p-0">
-          <div className="p-5 sm:p-6">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-background/70 text-primary shadow-sm">
-                <WandSparkles className="size-5" />
-              </span>
-              <div>
-                <p className="text-sm font-medium">Chatbot</p>
-                <p className="mt-1 text-xs text-muted-foreground">Discutez, enrichissez le contexte et pilotez chaque assistant.</p>
-              </div>
-            </div>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Badge className="border-border/60 bg-background/50">Chat persistant</Badge>
-              <Badge className="border-border/60 bg-background/50">Memoire controlee</Badge>
-              <Badge className="border-border/60 bg-background/50">Sources web</Badge>
+        <div className="rounded-[28px] border border-border/60 bg-background/50 p-5 backdrop-blur-sm sm:p-6">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-background/70 text-primary shadow-sm">
+              <WandSparkles className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-medium">Chatbot</p>
+              <p className="mt-1 text-xs text-muted-foreground">Discutez, enrichissez le contexte et pilotez chaque assistant.</p>
             </div>
           </div>
-        </GlassCard>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Badge className="border-border/60 bg-background/50">Chat persistant</Badge>
+            <Badge className="border-border/60 bg-background/50">Memoire controlee</Badge>
+            <Badge className="border-border/60 bg-background/50">Sources web</Badge>
+          </div>
+        </div>
 
-        <GlassCard className="p-0 sm:p-0">
-          <div className="p-5">
-            <div className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[10px] font-medium text-primary">Assistants actifs</div>
-            <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{chatbots.filter((item) => item.status === "active").length}</p>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">Chatbots disponibles dans cet espace</p>
-          </div>
-        </GlassCard>
-        <GlassCard className="p-0 sm:p-0">
-          <div className="p-5">
-            <div className="inline-flex rounded-full border border-violet-500/20 bg-violet-500/5 px-2.5 py-1 text-[10px] font-medium text-violet-500">Conversations</div>
-            <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{conversations.length}</p>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">Sessions sauvegardees pour le chatbot courant</p>
-          </div>
-        </GlassCard>
+        <div className="rounded-[24px] border border-border/60 bg-background/50 p-5 backdrop-blur-sm">
+          <div className="inline-flex rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-[10px] font-medium text-primary">Assistants actifs</div>
+          <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{chatbots.filter((item) => item.status === "active").length}</p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">Chatbots disponibles dans cet espace</p>
+        </div>
+        <div className="rounded-[24px] border border-border/60 bg-background/50 p-5 backdrop-blur-sm">
+          <div className="inline-flex rounded-full border border-violet-500/20 bg-violet-500/5 px-2.5 py-1 text-[10px] font-medium text-violet-500">Conversations</div>
+          <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{conversations.length}</p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">Sessions sauvegardees pour le chatbot courant</p>
+        </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">

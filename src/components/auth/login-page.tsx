@@ -8,9 +8,6 @@ import { z } from "zod";
 import { ArrowRight, Building2, CheckCircle2, Chrome, LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
 import { AstraMark } from "@/components/shared/astra-mark";
 import { GlassButton } from "@/components/ui/glass-button";
-import { GlassDecorative } from "@/components/ui/glass-decorative";
-import { LiquidGlassRoot } from "@/components/ui/liquid-glass-root";
-import { AnimatedBackground } from "@/components/ui/animated-background";
 import { Input } from "@/components/ui/input";
 
 const formSchema = z.object({
@@ -79,10 +76,11 @@ export function LoginPage() {
   };
 
   return (
-    <LiquidGlassRoot className="relative grid min-h-screen bg-background lg:grid-cols-[1.08fr_.92fr]">
-      <AnimatedBackground className="col-span-full row-span-full -z-10 pointer-events-none" />
-      <GlassDecorative shape="circle" preset="vivid" size="lg" style={{ position: 'absolute', top: '-8%', right: '-4%', zIndex: 0, opacity: 0.6 }} />
-      <GlassDecorative shape="pill" preset="frosted" size="md" style={{ position: 'absolute', bottom: '10%', left: '-3%', zIndex: 0, opacity: 0.5 }} />
+    <main className="relative grid min-h-screen bg-background lg:grid-cols-[1.08fr_.92fr]">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -left-[15%] -top-[15%] size-[45%] rounded-full bg-indigo-500/15 blur-[120px]" />
+        <div className="absolute -bottom-[15%] -right-[15%] size-[45%] rounded-full bg-violet-500/15 blur-[120px]" />
+      </div>
 
       <div className="absolute right-8 top-8 z-10 hidden rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-medium text-white backdrop-blur-md lg:flex items-center gap-2">
         <ShieldCheck className="size-3.5 text-emerald-400" />
@@ -105,8 +103,8 @@ export function LoginPage() {
         <p className="relative font-mono text-[10px] text-[#777BA8]">Authentification Supabase · Sessions HTTP-only · Secrets chiffrés</p>
       </section>
 
-      <div className="flex items-center justify-center p-5 sm:p-10">
-        <div className="liquid-glass w-full max-w-md" data-config={JSON.stringify({ cornerRadius: 28, blurAmount: 0.2, refraction: 0.5, edgeHighlight: 0.08, chromAberration: 0.05, specular: 0.08, shadowOpacity: 0.25, zRadius: 24 })}>
+      <section className="flex items-center justify-center p-5 sm:p-10">
+        <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden"><AstraMark className="size-9" /><span className="font-display font-bold">Astra OS</span></div>
           <div className="mb-7"><p className="astra-eyebrow">{mode === "login" ? "Bon retour" : "Créer votre espace"}</p><h2 className="mt-3 font-display text-3xl font-semibold tracking-tight">{mode === "login" ? "Connectez-vous à Astra" : "Lancez votre entreprise sur Astra"}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{mode === "login" ? "Retrouvez vos objectifs, vos agents et vos automatisations." : "Un espace de données indépendant sera créé pour votre organisation."}</p></div>
 
@@ -125,7 +123,7 @@ export function LoginPage() {
           {mode === "login" ? <p className="mt-4 text-center"><a href="/forgot-password" className="text-sm font-medium text-primary hover:underline">Mot de passe oublié ?</a></p> : null}
           <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité de votre organisation.</p>
         </div>
-      </div>
-    </LiquidGlassRoot>
+      </section>
+    </main>
   );
 }
