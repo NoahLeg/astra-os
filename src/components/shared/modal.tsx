@@ -60,16 +60,17 @@ export function Modal({ open, onClose, title, description, children }: ModalProp
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-[#06070F]/60 p-0 backdrop-blur-md sm:items-center sm:p-4"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-[#06070F]/70 p-0 backdrop-blur-md sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
-      <div ref={dialogRef} className="max-h-[94vh] w-full max-w-xl overflow-auto rounded-t-[14px] border border-[var(--glass-border)] bg-[var(--surface-modal)] shadow-[var(--shadow-xl)] sm:max-h-[90vh] sm:rounded-[14px]">
-        <div className="glass-strong sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--glass-border)] p-4 sm:p-5">
+      <div ref={dialogRef} className="max-h-[94vh] w-full max-w-xl overflow-auto rounded-t-[14px] border bg-card shadow-[0_28px_90px_-28px_rgba(5,6,20,.75)] sm:max-h-[90vh] sm:rounded-[10px]">
+        <div className="glass sticky top-0 z-10 flex items-start justify-between gap-3 border-b p-4 sm:p-5">
           <div className="min-w-0">
-            <h2 id={titleId} className="font-display text-lg font-semibold">{title}</h2>
+            <p className="astra-eyebrow">Astra OS</p>
+            <h2 id={titleId} className="mt-1 font-display text-lg font-semibold">{title}</h2>
             {description ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p> : null}
           </div>
           <Button ref={closeButtonRef} variant="ghost" size="icon" className="shrink-0" onClick={onClose} aria-label="Fermer">

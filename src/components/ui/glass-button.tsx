@@ -43,7 +43,7 @@ export function GlassButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "liquid-glass inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 py-2.5 text-sm font-semibold transition-transform duration-[var(--duration-normal)] ease-[var(--ease-out-expo)] active:scale-[.97]",
+        "liquid-glass inline-flex items-center justify-center gap-2 whitespace-nowrap px-5 py-2.5 text-sm font-semibold",
         disabled && "pointer-events-none opacity-50",
         className,
       )}

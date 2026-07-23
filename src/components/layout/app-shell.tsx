@@ -8,7 +8,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { CommandPalette } from "./command-palette";
-import { MobileLiquidNavigation } from "./mobile-liquid-navigation";
+import { MobileSidebar } from "./mobile-sidebar";
 import { LoaderCircle } from "lucide-react";
 import { hasAccess, hasFeature, routes } from "@/config";
 
@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname.startsWith("/auth/") || pathname.startsWith("/onboarding/")) return <>{children}</>;
   if (pathname.startsWith("/admin")) return <>{children}</>;
   if (dataStatus === "loading") return <div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><LoaderCircle className="mx-auto size-8 animate-spin text-indigo-500" /><p className="mt-4 text-sm text-muted-foreground">Chargement de votre espace sécurisé…</p></div></div>;
-  if (dataStatus === "error") return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md rounded-2xl border border-[var(--glass-border)] surface-raised p-6 text-center shadow-[var(--shadow-md)]"><h1 className="font-semibold">Espace indisponible</h1><p className="mt-2 text-sm text-muted-foreground">{dataError}</p><button onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">Réessayer</button></div></div>;
+  if (dataStatus === "error") return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md rounded-2xl border bg-card p-6 text-center"><h1 className="font-semibold">Espace indisponible</h1><p className="mt-2 text-sm text-muted-foreground">{dataError}</p><button onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">Réessayer</button></div></div>;
   const activeRoute = routes.find((route) => route.href === "/" ? pathname === "/" : pathname.startsWith(route.href));
   if (pathname === "/goals/new" && !hasAccess(account?.accessLevel, "operator")) {
     return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md rounded-2xl border bg-card p-7 text-center"><h1 className="text-lg font-semibold">Création non autorisée</h1><p className="mt-2 text-sm text-muted-foreground">Le niveau Lecture peut consulter les objectifs, mais pas en créer.</p><Link href="/goals" className="mt-5 inline-flex rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">Voir les objectifs</Link></div></div>;
@@ -32,5 +32,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (activeRoute && !hasFeature(account?.subscription?.features, "feature" in activeRoute ? activeRoute.feature : undefined)) {
     return <div className="flex min-h-screen items-center justify-center bg-background p-6"><div className="max-w-md rounded-2xl border bg-card p-7 text-center"><h1 className="text-lg font-semibold">Fonctionnalité non incluse</h1><p className="mt-2 text-sm text-muted-foreground">Cette section n’est pas comprise dans l’abonnement actuel de votre entreprise.</p><Link href="/billing" className="mt-5 inline-flex rounded-xl bg-primary px-4 py-2 text-sm text-primary-foreground">Comparer les offres</Link></div></div>;
   }
-  return <div className="app-canvas min-h-screen overflow-x-hidden bg-background"><Sidebar /><MobileLiquidNavigation /><div className={cn("min-h-screen transition-[margin] duration-300", sidebarCollapsed ? "lg:ml-[80px]" : "lg:ml-[264px]")}><Topbar /><main className={cn("pb-safe mx-auto w-full max-w-[1560px]", account?.preferences?.density === "compact" ? "p-3 md:p-4 xl:p-5" : "p-3 sm:p-5 md:p-7 xl:p-9")}>{children}</main></div><AssistantPanel /><CommandPalette /></div>;
+  return <div className="app-canvas min-h-screen overflow-x-hidden bg-background"><Sidebar /><MobileSidebar /><div className={cn("min-h-screen transition-[margin] duration-300", sidebarCollapsed ? "lg:ml-[80px]" : "lg:ml-[264px]")}><Topbar /><main className={cn("mx-auto w-full max-w-[1560px]", account?.preferences?.density === "compact" ? "p-3 md:p-4 xl:p-5" : "p-3 sm:p-5 md:p-7 xl:p-9")}>{children}</main></div><AssistantPanel /><CommandPalette /></div>;
 }

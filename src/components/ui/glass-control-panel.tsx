@@ -26,8 +26,6 @@ export function GlassControlPanel() {
   const [open, setOpen] = useState(false)
   const { overrides, updateOverride, resetOverrides } = useGlassConfig()
 
-  if (process.env.NODE_ENV !== "development") return null
-
   return (
     <>
       <button
