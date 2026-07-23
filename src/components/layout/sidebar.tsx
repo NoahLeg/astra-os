@@ -7,6 +7,7 @@ import { hasAccess, hasFeature, routes } from "@/config";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app-store";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
+import { GlassSurface } from "@/components/ui/glass-surface";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -32,13 +33,62 @@ export function Sidebar() {
         {!sidebarCollapsed ? <p className="px-3 pb-2 pt-2 font-mono text-[9px] uppercase tracking-[.18em] text-muted-foreground">Espace de travail</p> : null}
         {visibleRoutes.map((route) => {
           const active = route.href === "/" ? pathname === "/" : pathname.startsWith(route.href);
-          return <Link key={route.href} href={route.href} title={sidebarCollapsed ? route.label : undefined} className={cn("group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition", active ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground", sidebarCollapsed && "justify-center px-0")}><DynamicIcon name={route.icon} className={cn("size-4 shrink-0 transition", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />{!sidebarCollapsed ? <span>{route.label}</span> : null}{active && !sidebarCollapsed ? <span className="absolute left-0 size-1.5 rounded-full bg-primary ring-2 ring-primary/30" /> : null}{route.href === "/approvals" && !sidebarCollapsed && pendingApprovals > 0 ? <span className="ml-auto rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[9px] font-medium text-primary">{pendingApprovals}</span> : null}</Link>;
+          return (
+            <Link
+              key={route.href}
+              href={route.href}
+              title={sidebarCollapsed ? route.label : undefined}
+              className={cn(
+                "group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition",
+                active
+                  ? "text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                sidebarCollapsed && "justify-center px-0"
+              )}
+            >
+              {active && !sidebarCollapsed ? (
+                <GlassSurface
+                  variant="lens"
+                  className="absolute inset-0"
+                  aria-hidden="true"
+                />
+              ) : null}
+              <DynamicIcon name={route.icon} className={cn("size-4 shrink-0 transition relative z-10", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+              {!sidebarCollapsed ? <span className="relative z-10">{route.label}</span> : null}
+              {route.href === "/approvals" && !sidebarCollapsed && pendingApprovals > 0 ? (
+                <span className="ml-auto rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[9px] font-medium text-primary">{pendingApprovals}</span>
+              ) : null}
+            </Link>
+          );
         })}
       </nav>
 
       <div className="space-y-2 border-t border-border/50 p-3">
-        <div className={cn("rounded-lg border border-border/60 bg-background/50 p-3", sidebarCollapsed && "flex justify-center p-2.5")}><div className="flex items-center gap-2.5"><span className="relative flex size-2"><span className="relative inline-flex size-2 rounded-full bg-emerald-500" /></span>{!sidebarCollapsed ? <div><p className="text-xs font-medium text-foreground">Système opérationnel</p><p className="font-mono text-[9px] text-muted-foreground">{activeAgents} agents actifs</p></div> : null}</div></div>
-        <div className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-muted"><Link href="/account" className="flex min-w-0 flex-1 items-center gap-3"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#3A4CE0] to-[#6E42D9] text-[10px] font-semibold text-white">{initials}</span>{!sidebarCollapsed ? <span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium text-foreground">{displayName}</span><span className="block truncate font-mono text-[9px] text-muted-foreground">{account?.workspaceName ?? "Espace de travail"}</span></span> : null}</Link><button type="button" onClick={toggleSidebar} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={sidebarCollapsed ? "Déployer la barre latérale" : "Réduire la barre latérale"}>{sidebarCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}</button></div>
+        <div className={cn("rounded-lg border border-border/60 bg-background/50 p-3", sidebarCollapsed && "flex justify-center p-2.5")}>
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex size-2"><span className="relative inline-flex size-2 rounded-full bg-emerald-500" /></span>
+            {!sidebarCollapsed ? (
+              <div>
+                <p className="text-xs font-medium text-foreground">Système opérationnel</p>
+                <p className="font-mono text-[9px] text-muted-foreground">{activeAgents} agents actifs</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-muted">
+          <Link href="/account" className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#3A4CE0] to-[#6E42D9] text-[10px] font-semibold text-white">{initials}</span>
+            {!sidebarCollapsed ? (
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium text-foreground">{displayName}</span>
+                <span className="block truncate font-mono text-[9px] text-muted-foreground">{account?.workspaceName ?? "Espace de travail"}</span>
+              </span>
+            ) : null}
+          </Link>
+          <button type="button" onClick={toggleSidebar} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={sidebarCollapsed ? "Déployer la barre latérale" : "Réduire la barre latérale"}>
+            {sidebarCollapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+          </button>
+        </div>
       </div>
     </nav>
   );

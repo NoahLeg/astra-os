@@ -39,6 +39,93 @@
   --font-display: var(--font-bricolage), "Bricolage Grotesque", sans-serif;
   --font-body: var(--font-ibm-plex-sans), "IBM Plex Sans", sans-serif;
   --font-code: var(--font-ibm-plex-mono), "IBM Plex Mono", monospace;
+
+  --surface-content-opacity: 0.92;
+  --surface-content-blur: 8px;
+  --surface-content-saturation: 110%;
+  --surface-content-contrast: 102%;
+  --surface-content-highlight: 0.04;
+  --surface-content-border-light: rgba(255,255,255,0.08);
+  --surface-content-border-dark: rgba(0,0,0,0.35);
+  --surface-content-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.1) inset;
+  --surface-content-depth: 0;
+  --surface-content-refraction: 0;
+
+  --surface-glass-opacity: 0.72;
+  --surface-glass-blur: 16px;
+  --surface-glass-saturation: 130%;
+  --surface-glass-contrast: 105%;
+  --surface-glass-highlight: 0.08;
+  --surface-glass-border-light: rgba(255,255,255,0.12);
+  --surface-glass-border-dark: rgba(0,0,0,0.25);
+  --surface-glass-shadow: 0 8px 32px rgba(0,0,0,0.22), 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.06) inset, 0 -1px 0 rgba(0,0,0,0.2) inset;
+  --surface-glass-depth: 4px;
+  --surface-glass-refraction: 0.15;
+
+  --surface-floating-opacity: 0.58;
+  --surface-floating-blur: 24px;
+  --surface-floating-saturation: 140%;
+  --surface-floating-contrast: 108%;
+  --surface-floating-highlight: 0.12;
+  --surface-floating-border-light: rgba(255,255,255,0.18);
+  --surface-floating-border-dark: rgba(0,0,0,0.3);
+  --surface-floating-shadow: 0 24px 70px rgba(0,0,0,0.42), 0 8px 24px rgba(0,0,0,0.24), 0 0 0 1px rgba(255,255,255,0.1) inset, 0 -1px 0 rgba(0,0,0,0.3) inset;
+  --surface-floating-contact-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  --surface-floating-depth: 12px;
+  --surface-floating-refraction: 0.25;
+
+  --surface-lens-opacity: 0.45;
+  --surface-lens-blur: 32px;
+  --surface-lens-saturation: 160%;
+  --surface-lens-contrast: 112%;
+  --surface-lens-highlight: 0.22;
+  --surface-lens-border-light: rgba(255,255,255,0.35);
+  --surface-lens-border-dark: rgba(0,0,0,0.45);
+  --surface-lens-shadow: 0 16px 48px rgba(0,0,0,0.38), 0 4px 16px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.18) inset, 0 -2px 8px rgba(0,0,0,0.35) inset;
+  --surface-lens-depth: 8px;
+  --surface-lens-refraction: 0.55;
+  --surface-lens-specular: 0.28;
+
+  --surface-control-opacity: 0.68;
+  --surface-control-blur: 20px;
+  --surface-control-saturation: 135%;
+  --surface-control-contrast: 106%;
+  --surface-control-highlight: 0.1;
+  --surface-control-border-light: rgba(255,255,255,0.14);
+  --surface-control-border-dark: rgba(0,0,0,0.28);
+  --surface-control-shadow: 0 4px 16px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.08) inset;
+  --surface-control-depth: 2px;
+  --surface-control-refraction: 0.1;
+
+  --surface-button-opacity: 0.52;
+  --surface-button-blur: 28px;
+  --surface-button-saturation: 150%;
+  --surface-button-contrast: 110%;
+  --surface-button-highlight: 0.18;
+  --surface-button-border-light: rgba(255,255,255,0.22);
+  --surface-button-border-dark: rgba(0,0,0,0.4);
+  --surface-button-shadow: 0 12px 36px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.22), 0 0 0 1px rgba(255,255,255,0.14) inset, 0 -1px 0 rgba(0,0,0,0.3) inset;
+  --surface-button-depth: 6px;
+  --surface-button-refraction: 0.35;
+  --surface-button-specular: 0.22;
+
+  --surface-accent-cyan: #168ca8;
+  --surface-accent-violet: #6e42d9;
+  --surface-accent-cyan-glow: rgba(22,140,168,0.35);
+  --surface-accent-violet-glow: rgba(110,66,217,0.35);
+
+  --motion-instant: 120ms;
+  --motion-quick: 200ms;
+  --motion-standard: 320ms;
+  --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --motion-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+  --glass-light-x: 0.5;
+  --glass-light-y: -1;
+  --glass-velocity: 0;
+  --glass-stretch: 1;
+  --glass-squash: 1;
+  --glass-refraction-intensity: 1;
 }
 
 .dark {
@@ -90,6 +177,18 @@ html[data-reduced-motion="true"] *, html[data-reduced-motion="true"] *::before, 
   --font-sans: "IBM Plex Sans", "IBM Plex Sans Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Bricolage Grotesque", "Bricolage Grotesque Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", "IBM Plex Mono Fallback", ui-monospace, monospace;
+
+  --blur-glass: 16px;
+  --blur-floating: 24px;
+  --blur-lens: 32px;
+  --blur-control: 20px;
+  --blur-button: 28px;
+
+  --shadow-glass: var(--surface-glass-shadow);
+  --shadow-floating: var(--surface-floating-shadow);
+  --shadow-lens: var(--surface-lens-shadow);
+  --shadow-control: var(--surface-control-shadow);
+  --shadow-button: var(--surface-button-shadow);
 }
 
 * { border-color: var(--border); }
@@ -153,4 +252,39 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-soft { animation: none; }
+  * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --surface-content-opacity: 0.98;
+    --surface-glass-opacity: 0.9;
+    --surface-floating-opacity: 0.85;
+    --surface-lens-opacity: 0.8;
+    --surface-control-opacity: 0.9;
+    --surface-button-opacity: 0.85;
+    --surface-content-blur: 4px;
+    --surface-glass-blur: 8px;
+    --surface-floating-blur: 12px;
+    --surface-lens-blur: 16px;
+    --surface-control-blur: 10px;
+    --surface-button-blur: 14px;
+    --surface-content-refraction: 0;
+    --surface-glass-refraction: 0;
+    --surface-floating-refraction: 0;
+    --surface-lens-refraction: 0;
+    --surface-control-refraction: 0;
+    --surface-button-refraction: 0;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --surface-content-opacity: 1;
+    --surface-glass-opacity: 0.95;
+    --surface-floating-opacity: 0.9;
+    --surface-lens-opacity: 0.85;
+    --surface-control-opacity: 0.95;
+    --surface-button-opacity: 0.9;
+  }
 }
